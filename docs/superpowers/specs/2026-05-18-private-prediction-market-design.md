@@ -295,7 +295,7 @@ Domain tests should cover:
 - Early resolution cancels open orders and settles positions atomically.
 - Natural close time cancels open orders and blocks new trading.
 - Blacklisting immediately cancels open orders but preserves filled positions.
-- Blacklisted users cannot trade or resolve that market.
+- Blacklisted users cannot trade that market, but can resolve it if their account is active.
 - Cancelled markets pay `50` cents per outstanding YES or NO share.
 - Admin corrections create reversal entries instead of mutating history.
 - Email digests include only eligible recipients and active-market content.
