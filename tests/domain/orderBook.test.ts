@@ -124,4 +124,168 @@ describe("matchIncomingOrder", () => {
     expect(result.fills).toEqual([]);
     expect(result.incomingRemaining).toBe(3);
   });
+
+  it("ignores zero and negative remaining resting orders", () => {
+    const resting = [
+      baseOrder({
+        id: "sell-zero",
+        userId: "alice",
+        action: "SELL",
+        limitPrice: 50,
+        remainingQuantity: 0,
+      }),
+      baseOrder({
+        id: "sell-negative",
+        userId: "carol",
+        action: "SELL",
+        limitPrice: 50,
+        remainingQuantity: -2,
+      }),
+      baseOrder({
+        id: "sell-open",
+        userId: "dave",
+        action: "SELL",
+        limitPrice: 50,
+        remainingQuantity: 1,
+      }),
+    ];
+    const incoming = baseOrder({
+      id: "buy",
+      userId: "bob",
+      action: "BUY",
+      limitPrice: 60,
+      remainingQuantity: 2,
+    });
+
+    const result = matchIncomingOrder(incoming, resting);
+
+    expect(result.fills).toEqual([
+      {
+        kind: "SECONDARY",
+        restingOrderId: "sell-open",
+        incomingOrderId: "buy",
+        quantity: 1,
+        outcome: "YES",
+        price: 50,
+        buyerUserId: "bob",
+        sellerUserId: "dave",
+      },
+    ]);
+    expect(result.incomingRemaining).toBe(1);
+  });
+
+  it("uses order id as deterministic final tie-breaker when price and timestamp are equal", () => {
+    const resting = [
+      baseOrder({
+        id: "sell-b",
+        userId: "alice",
+        action: "SELL",
+        limitPrice: 50,
+        createdAtMs: 1,
+      }),
+      baseOrder({
+        id: "sell-a",
+        userId: "carol",
+        action: "SELL",
+        limitPrice: 50,
+        createdAtMs: 1,
+      }),
+    ];
+    const incoming = baseOrder({
+      id: "buy",
+      userId: "bob",
+      action: "BUY",
+      limitPrice: 60,
+      remainingQuantity: 2,
+    });
+
+    const result = matchIncomingOrder(incoming, resting);
+
+    expect(result.fills.map((fill) => fill.restingOrderId)).toEqual([
+      "sell-a",
+      "sell-b",
+    ]);
+  });
+
+  it("does not match non-crossing complementary primary buys", () => {
+    const resting = [
+      baseOrder({
+        id: "yes-1",
+        userId: "alice",
+        outcome: "YES",
+        action: "BUY",
+        limitPrice: 60,
+      }),
+    ];
+    const incoming = baseOrder({
+      id: "no-1",
+      userId: "bob",
+      outcome: "NO",
+      action: "BUY",
+      limitPrice: 39,
+    });
+
+    const result = matchIncomingOrder(incoming, resting);
+
+    expect(result.fills).toEqual([]);
+    expect(result.incomingRemaining).toBe(1);
+  });
+
+  it("does not match orders from the same user", () => {
+    const resting = [
+      baseOrder({
+        id: "sell-1",
+        userId: "alice",
+        action: "SELL",
+        limitPrice: 50,
+      }),
+    ];
+    const incoming = baseOrder({
+      id: "buy-1",
+      userId: "alice",
+      action: "BUY",
+      limitPrice: 60,
+    });
+
+    const result = matchIncomingOrder(incoming, resting);
+
+    expect(result.fills).toEqual([]);
+    expect(result.incomingRemaining).toBe(1);
+  });
+
+  it("does not fill non-positive incoming quantities", () => {
+    const resting = [
+      baseOrder({
+        id: "sell-1",
+        userId: "alice",
+        action: "SELL",
+        limitPrice: 50,
+      }),
+    ];
+
+    expect(
+      matchIncomingOrder(
+        baseOrder({
+          id: "buy-zero",
+          userId: "bob",
+          action: "BUY",
+          limitPrice: 60,
+          remainingQuantity: 0,
+        }),
+        resting,
+      ),
+    ).toEqual({ fills: [], incomingRemaining: 0 });
+    expect(
+      matchIncomingOrder(
+        baseOrder({
+          id: "buy-negative",
+          userId: "bob",
+          action: "BUY",
+          limitPrice: 60,
+          remainingQuantity: -1,
+        }),
+        resting,
+      ),
+    ).toEqual({ fills: [], incomingRemaining: -1 });
+  });
 });

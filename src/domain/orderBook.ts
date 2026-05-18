@@ -42,14 +42,20 @@ export function matchIncomingOrder(
   const fills: OrderFill[] = [];
   let incomingRemaining = incoming.remainingQuantity;
 
+  if (incomingRemaining <= 0) {
+    return { fills, incomingRemaining };
+  }
+
   const candidates = restingOrders
     .filter((order) => order.marketId === incoming.marketId)
+    .filter((order) => order.remainingQuantity > 0)
     .filter((order) => order.userId !== incoming.userId)
     .filter((order) => canMatch(incoming, order))
     .sort(
       (a, b) =>
         priority(incoming, a) - priority(incoming, b) ||
-        a.createdAtMs - b.createdAtMs,
+        a.createdAtMs - b.createdAtMs ||
+        a.id.localeCompare(b.id),
     );
 
   for (const resting of candidates) {
