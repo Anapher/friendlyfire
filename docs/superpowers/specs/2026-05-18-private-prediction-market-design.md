@@ -14,7 +14,7 @@ The platform itself never takes risk, never provides liquidity, and should remai
 - Keep accounting zero-sum through explicit cash locks, share locks, trades, and settlement entries.
 - Allow new YES/NO share pairs to be created only when opposing buyers fully fund a pair together.
 - Allow admins to manually add or remove funds from user accounts.
-- Allow any non-blacklisted trusted user to resolve a market, including before close time.
+- Allow any user to resolve a market, including before close time.
 - Allow per-market blacklists that take effect immediately.
 - Send regular email digests about active markets.
 
@@ -76,7 +76,6 @@ When close time passes naturally, trading stops and open orders are cancelled. T
 Each market can blacklist users. A blacklisted user:
 
 - Cannot place new orders on that market.
-- Cannot resolve that market.
 - Has all open orders on that market cancelled immediately when blacklisted.
 - Keeps already-filled positions, which settle normally.
 - May still view the market for transparency.
@@ -164,7 +163,7 @@ Every outstanding YES/NO pair must be fully backed by `100` cents of user-funded
 
 ## Resolution And Settlement
 
-Any active, non-blacklisted user may resolve a market as:
+Any active user may resolve a market as:
 
 - `YES`.
 - `NO`.
