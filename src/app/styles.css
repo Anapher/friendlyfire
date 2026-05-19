@@ -30,6 +30,7 @@ body {
 a {
   color: var(--accent-strong);
   font-weight: 700;
+  overflow-wrap: anywhere;
   text-decoration: none;
 }
 
@@ -50,6 +51,7 @@ h2,
 h3,
 p {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 h1 {
@@ -84,19 +86,25 @@ section,
 .page-header p,
 .muted {
   color: var(--muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 table {
   border-collapse: collapse;
+  table-layout: fixed;
   width: 100%;
 }
 
 th,
 td {
   border-bottom: 1px solid var(--line);
+  max-width: 24rem;
+  overflow-wrap: anywhere;
   padding: 7px 8px;
   text-align: left;
   vertical-align: top;
+  word-break: break-word;
 }
 
 th {
@@ -196,6 +204,8 @@ td button {
 
 .market-summary dd {
   margin: 2px 0 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .two-column {
