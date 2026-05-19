@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String            @id @default(cuid())
+  name              String
+  email             String            @unique
+  role              String            @default("USER")
+  status            String            @default("ACTIVE")
+  availableCents    Int               @default(0)
+  lockedCents       Int               @default(0)
+  digestOptOut      Boolean           @default(false)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  createdMarkets    Market[]          @relation("MarketCreator")
+  resolvedMarkets   Market[]          @relation("MarketResolver")
+  blacklistEntries  MarketBlacklist[] @relation("BlacklistUser")
+  blacklistCreated  MarketBlacklist[] @relation("BlacklistCreator")
+  orders            Order[]
+  boughtTrades      Trade[]           @relation("TradeBuyer")
+  soldTrades        Trade[]           @relation("TradeSeller")
+  yesBoughtTrades   Trade[]           @relation("TradeYesBuyer")
+  noBoughtTrades    Trade[]           @relation("TradeNoBuyer")
+  positions         Position[]
+  ledgerEntries     LedgerEntry[]
+  auditLogs         AuditLog[]         @relation("AuditActor")
+}
+
+model Market {
+  id                 String            @id @default(cuid())
+  question           String
+  description        String
+  resolutionCriteria String
+  closeTime          DateTime
+  creatorId          String
+  status             String            @default("OPEN")
+  resolution         String?
+  resolutionNote     String?
+  resolvedById       String?
+  resolvedAt         DateTime?
+  collateralCents    Int               @default(0)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  creator            User              @relation("MarketCreator", fields: [creatorId], references: [id])
+  resolvedBy         User?             @relation("MarketResolver", fields: [resolvedById], references: [id], onDelete: Restrict)
+  orders             Order[]
+  trades             Trade[]
+  positions          Position[]
+  blacklist          MarketBlacklist[]
+  ledgerEntries      LedgerEntry[]
+
+  @@index([status, closeTime])
+}
+
+model MarketBlacklist {
+  marketId    String
+  userId      String
+  createdById String
+  note        String?
+  createdAt   DateTime @default(now())
+  market      Market   @relation(fields: [marketId], references: [id])
+  user        User     @relation("BlacklistUser", fields: [userId], references: [id])
+  createdBy   User     @relation("BlacklistCreator", fields: [createdById], references: [id])
+
+  @@id([marketId, userId])
+  @@index([userId])
+  @@index([createdById])
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  marketId          String
+  userId            String
+  outcome           String
+  action            String
+  limitPriceCents   Int
+  originalQuantity  Int
+  remainingQuantity Int
+  lockedCents       Int        @default(0)
+  lockedQuantity    Int        @default(0)
+  status            String      @default("OPEN")
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  market            Market      @relation(fields: [marketId], references: [id])
+  user              User        @relation(fields: [userId], references: [id])
+
+  @@index([marketId, status, outcome, action])
+  @@index([userId, status])
+}
+
+model Trade {
+  id             String   @id @default(cuid())
+  marketId       String
+  kind           String
+  outcome        String?
+  quantity       Int
+  yesPriceCents  Int?
+  noPriceCents   Int?
+  priceCents     Int?
+  buyerUserId    String?
+  sellerUserId   String?
+  yesBuyerUserId String?
+  noBuyerUserId  String?
+  createdAt      DateTime @default(now())
+  market         Market   @relation(fields: [marketId], references: [id])
+  buyer          User?    @relation("TradeBuyer", fields: [buyerUserId], references: [id], onDelete: Restrict)
+  seller         User?    @relation("TradeSeller", fields: [sellerUserId], references: [id], onDelete: Restrict)
+  yesBuyer       User?    @relation("TradeYesBuyer", fields: [yesBuyerUserId], references: [id], onDelete: Restrict)
+  noBuyer        User?    @relation("TradeNoBuyer", fields: [noBuyerUserId], references: [id], onDelete: Restrict)
+
+  @@index([marketId, createdAt])
+  @@index([buyerUserId])
+  @@index([sellerUserId])
+  @@index([yesBuyerUserId])
+  @@index([noBuyerUserId])
+}
+
+model Position {
+  id                String  @id @default(cuid())
+  userId            String
+  marketId          String
+  outcome           String
+  availableQuantity Int     @default(0)
+  lockedQuantity    Int     @default(0)
+  user              User    @relation(fields: [userId], references: [id])
+  market            Market  @relation(fields: [marketId], references: [id])
+
+  @@unique([userId, marketId, outcome])
+  @@index([marketId, outcome])
+}
+
+model LedgerEntry {
+  id           String   @id @default(cuid())
+  userId       String?
+  marketId     String?
+  type         String
+  amountCents  Int
+  metadataJson String
+  createdAt    DateTime @default(now())
+  user         User?    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  market       Market?  @relation(fields: [marketId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([marketId, createdAt])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorUserId  String?
+  action       String
+  entityType   String
+  entityId     String?
+  metadataJson String
+  createdAt    DateTime @default(now())
+  actor        User?    @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([actorUserId, createdAt])
+  @@index([entityType, entityId, createdAt])
+}
