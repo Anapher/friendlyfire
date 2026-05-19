@@ -261,6 +261,13 @@ describe("market settlement", () => {
       resolution: "NO",
       note: "first correction",
     });
+    await prisma.ledgerEntry.updateMany({
+      where: {
+        marketId: market.id,
+        type: { in: ["MARKET_SETTLEMENT_COLLATERAL", "MARKET_CORRECTION_COLLATERAL"] },
+      },
+      data: { createdAt: new Date("2026-05-19T12:00:00.000Z") },
+    });
 
     await correctMarketResolution(prisma, {
       actorUserId: admin.id,
@@ -280,6 +287,13 @@ describe("market settlement", () => {
       where: { action: "MARKET_RESOLVED" },
       orderBy: { createdAt: "asc" },
     });
+    const collateralEntries = await prisma.ledgerEntry.findMany({
+      where: {
+        marketId: market.id,
+        type: { in: ["MARKET_SETTLEMENT_COLLATERAL", "MARKET_CORRECTION_COLLATERAL"] },
+      },
+      orderBy: { createdAt: "asc" },
+    });
 
     expect(updatedMarket.resolution).toBe("CANCELLED");
     expect(updatedMarket.collateralCents).toBe(0);
@@ -287,6 +301,12 @@ describe("market settlement", () => {
     expect(updatedNoTrader.availableCents).toBe(1010);
     expect(reversalEntries.map((entry) => entry.amountCents)).toEqual([-100, -100, 100, 100]);
     expect(resolutionAudits).toHaveLength(3);
+    expect(
+      collateralEntries
+        .map((entry) => JSON.parse(entry.metadataJson) as { settlementSequence?: number })
+        .map((metadata) => metadata.settlementSequence)
+        .sort(),
+    ).toEqual([1, 2, 3]);
   });
 
   it("rejects correction when the current payout cannot be clawed back", async () => {

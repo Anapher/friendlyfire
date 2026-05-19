@@ -177,6 +177,7 @@ export async function resolveMarket(prisma: PrismaClient, input: ResolveMarketIn
       marketId: input.marketId,
       resolution: input.resolution,
       operationId,
+      settlementSequence: 1,
       snapshots,
       payoutLedgerType: "MARKET_PAYOUT",
       collateralLedgerType: "MARKET_SETTLEMENT_COLLATERAL",
@@ -217,6 +218,7 @@ export async function resolveMarket(prisma: PrismaClient, input: ResolveMarketIn
         resolvedAt: resolvedAt.toISOString(),
         cancelledOrderIds,
         operationId,
+        settlementSequence: 1,
         totalPayoutCents,
       },
     });
@@ -250,10 +252,10 @@ export async function correctMarketResolution(
     if (originalSettlementEntries.length === 0) {
       throw domainError("MISSING_SETTLEMENT_LEDGER", "Resolved market has no settlement ledger");
     }
-    const currentSettlementEntries = await currentSettlementLedgerEntries(tx, input.marketId);
+    const currentSettlement = await currentSettlementOperation(tx, input.marketId);
 
     const operationId = randomUUID();
-    for (const entry of currentSettlementEntries) {
+    for (const entry of currentSettlement.entries) {
       if (entry.amountCents === 0) {
         continue;
       }
@@ -284,6 +286,8 @@ export async function correctMarketResolution(
           amountCents: -entry.amountCents,
           metadataJson: JSON.stringify({
             operationId,
+            settlementSequence: currentSettlement.settlementSequence + 1,
+            reversedSettlementSequence: currentSettlement.settlementSequence,
             reversedLedgerEntryId: entry.id,
             actorUserId: input.actorUserId,
             note: input.note,
@@ -292,7 +296,7 @@ export async function correctMarketResolution(
       });
     }
 
-    const restoredCollateralCents = currentSettlementEntries.reduce(
+    const restoredCollateralCents = currentSettlement.entries.reduce(
       (total, entry) =>
         ALL_SETTLEMENT_COLLATERAL_LEDGER_TYPES.includes(entry.type)
           ? total - entry.amountCents
@@ -311,6 +315,7 @@ export async function correctMarketResolution(
       marketId: input.marketId,
       resolution: input.resolution,
       operationId,
+      settlementSequence: currentSettlement.settlementSequence + 1,
       snapshots,
       payoutLedgerType: "MARKET_CORRECTION_PAYOUT",
       collateralLedgerType: "MARKET_CORRECTION_COLLATERAL",
@@ -340,6 +345,7 @@ export async function correctMarketResolution(
         resolution: input.resolution,
         note: input.note,
         operationId,
+        settlementSequence: currentSettlement.settlementSequence + 1,
         totalPayoutCents,
       },
     });
@@ -356,6 +362,7 @@ export async function correctMarketResolution(
         note: input.note,
         resolvedAt: resolvedAt.toISOString(),
         operationId,
+        settlementSequence: currentSettlement.settlementSequence + 1,
         totalPayoutCents,
         correction: true,
       },
@@ -371,6 +378,7 @@ async function settlePositionSnapshots(
     marketId: string;
     resolution: Resolution;
     operationId: string;
+    settlementSequence: number;
     snapshots: MarketPositionSnapshot[];
     payoutLedgerType: string;
     collateralLedgerType: string;
@@ -400,6 +408,7 @@ async function settlePositionSnapshots(
           amountCents: payoutCents,
           metadataJson: JSON.stringify({
             operationId: input.operationId,
+            settlementSequence: input.settlementSequence,
             resolution: input.resolution,
             outcome: snapshot.outcome,
             quantity: snapshot.quantity,
@@ -417,6 +426,7 @@ async function settlePositionSnapshots(
       amountCents: -totalPayoutCents,
       metadataJson: JSON.stringify({
         operationId: input.operationId,
+        settlementSequence: input.settlementSequence,
         resolution: input.resolution,
         totalPayoutCents,
       }),
@@ -451,31 +461,49 @@ function positionSnapshotsFromSettlementLedger(
   return snapshots;
 }
 
-async function currentSettlementLedgerEntries(prisma: MarketsPrisma, marketId: string) {
-  const latestCollateralEntry = await prisma.ledgerEntry.findFirst({
+async function currentSettlementOperation(prisma: MarketsPrisma, marketId: string) {
+  const collateralEntries = await prisma.ledgerEntry.findMany({
     where: {
       marketId,
       type: { in: ALL_SETTLEMENT_COLLATERAL_LEDGER_TYPES },
     },
-    orderBy: { createdAt: "desc" },
   });
-  if (!latestCollateralEntry) {
+  if (collateralEntries.length === 0) {
     throw domainError("MISSING_SETTLEMENT_LEDGER", "Resolved market has no settlement ledger");
   }
 
-  const metadata = JSON.parse(latestCollateralEntry.metadataJson) as {
+  const latest = collateralEntries.reduce<{
+    entry: (typeof collateralEntries)[number];
     operationId?: string;
-  };
+    settlementSequence: number;
+  } | null>((selected, entry) => {
+    const metadata = JSON.parse(entry.metadataJson) as {
+      operationId?: string;
+      settlementSequence?: number;
+    };
+    const settlementSequence =
+      typeof metadata.settlementSequence === "number" ? metadata.settlementSequence : 1;
+    if (!selected || settlementSequence > selected.settlementSequence) {
+      return { entry, operationId: metadata.operationId, settlementSequence };
+    }
+
+    return selected;
+  }, null);
+  if (!latest) {
+    throw domainError("MISSING_SETTLEMENT_LEDGER", "Resolved market has no settlement ledger");
+  }
+
+  const metadata = { operationId: latest.operationId };
   if (!metadata.operationId) {
     throw domainError("MISSING_SETTLEMENT_OPERATION", "Settlement ledger is missing operation id");
   }
 
   const operationLedgerTypes =
-    latestCollateralEntry.type === "MARKET_SETTLEMENT_COLLATERAL"
+    latest.entry.type === "MARKET_SETTLEMENT_COLLATERAL"
       ? ORIGINAL_SETTLEMENT_LEDGER_TYPES
       : CORRECTION_SETTLEMENT_LEDGER_TYPES;
 
-  return prisma.ledgerEntry.findMany({
+  const entries = await prisma.ledgerEntry.findMany({
     where: {
       marketId,
       type: { in: operationLedgerTypes },
@@ -483,4 +511,9 @@ async function currentSettlementLedgerEntries(prisma: MarketsPrisma, marketId: s
     },
     orderBy: { createdAt: "asc" },
   });
+
+  return {
+    entries,
+    settlementSequence: latest.settlementSequence,
+  };
 }
