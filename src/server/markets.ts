@@ -1,8 +1,7 @@
-import type { Market, Prisma, PrismaClient } from "@prisma/client";
+import type { Market, PrismaClient } from "@prisma/client";
 import { domainError } from "@/domain/errors";
 import { audit } from "./audit";
-
-type MarketPrisma = PrismaClient | Prisma.TransactionClient;
+import { cancelRestingOrders } from "./orders";
 
 type CreateMarketInput = {
   actorUserId: string;
@@ -25,8 +24,6 @@ type ResolveMarketInput = {
   resolution: "YES" | "NO" | "CANCELLED";
   note: string;
 };
-
-const CANCELLABLE_ORDER_STATUSES = ["OPEN", "PARTIALLY_FILLED"];
 
 export async function createMarket(prisma: PrismaClient, input: CreateMarketInput) {
   return prisma.$transaction(async (tx) => {
@@ -170,60 +167,4 @@ export async function resolveMarket(prisma: PrismaClient, input: ResolveMarketIn
 
     return resolved;
   });
-}
-
-async function cancelRestingOrders(
-  prisma: MarketPrisma,
-  input: {
-    marketId: string;
-    userId?: string;
-  },
-) {
-  const orders = await prisma.order.findMany({
-    where: {
-      marketId: input.marketId,
-      userId: input.userId,
-      status: { in: CANCELLABLE_ORDER_STATUSES },
-    },
-    orderBy: { createdAt: "asc" },
-  });
-
-  for (const order of orders) {
-    if (order.lockedCents > 0) {
-      await prisma.user.update({
-        where: { id: order.userId },
-        data: {
-          availableCents: { increment: order.lockedCents },
-          lockedCents: { decrement: order.lockedCents },
-        },
-      });
-    }
-
-    if (order.lockedQuantity > 0) {
-      await prisma.position.update({
-        where: {
-          userId_marketId_outcome: {
-            userId: order.userId,
-            marketId: order.marketId,
-            outcome: order.outcome,
-          },
-        },
-        data: {
-          availableQuantity: { increment: order.lockedQuantity },
-          lockedQuantity: { decrement: order.lockedQuantity },
-        },
-      });
-    }
-
-    await prisma.order.update({
-      where: { id: order.id },
-      data: {
-        status: "CANCELLED",
-        lockedCents: 0,
-        lockedQuantity: 0,
-      },
-    });
-  }
-
-  return orders.map((order) => order.id);
 }
