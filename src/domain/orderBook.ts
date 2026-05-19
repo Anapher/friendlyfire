@@ -89,14 +89,18 @@ function canMatch(incoming: BookOrder, resting: BookOrder): boolean {
 
 function priority(incoming: BookOrder, resting: BookOrder): number {
   if (incoming.action === "BUY" && resting.action === "BUY") {
-    return -resting.limitPrice;
+    return 100 - resting.limitPrice;
   }
 
   if (incoming.action === "BUY") {
     return resting.limitPrice;
   }
 
-  return -resting.limitPrice;
+  if (resting.action === "BUY") {
+    return -resting.limitPrice;
+  }
+
+  return -(100 - resting.limitPrice);
 }
 
 function toFill(

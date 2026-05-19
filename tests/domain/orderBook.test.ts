@@ -116,6 +116,45 @@ describe("matchIncomingOrder", () => {
     ]);
   });
 
+  it("prefers a better secondary sell over worse primary issuance for an incoming buy", () => {
+    const resting = [
+      baseOrder({
+        id: "no-buy",
+        userId: "alice",
+        outcome: "NO",
+        action: "BUY",
+        limitPrice: 40,
+      }),
+      baseOrder({
+        id: "yes-sell",
+        userId: "carol",
+        outcome: "YES",
+        action: "SELL",
+        limitPrice: 10,
+      }),
+    ];
+    const incoming = baseOrder({
+      id: "yes-buy",
+      userId: "bob",
+      outcome: "YES",
+      action: "BUY",
+      limitPrice: 70,
+    });
+
+    const result = matchIncomingOrder(incoming, resting);
+
+    expect(result.fills[0]).toEqual({
+      kind: "SECONDARY",
+      restingOrderId: "yes-sell",
+      incomingOrderId: "yes-buy",
+      quantity: 1,
+      outcome: "YES",
+      price: 10,
+      buyerUserId: "bob",
+      sellerUserId: "carol",
+    });
+  });
+
   it("leaves unmatched quantity open", () => {
     const incoming = baseOrder({ id: "buy", remainingQuantity: 3 });
 
