@@ -38,6 +38,16 @@ type MarketPositionSnapshot = {
 
 type MarketsPrisma = Prisma.TransactionClient;
 
+const ORIGINAL_SETTLEMENT_LEDGER_TYPES = ["MARKET_PAYOUT", "MARKET_SETTLEMENT_COLLATERAL"];
+const CORRECTION_SETTLEMENT_LEDGER_TYPES = [
+  "MARKET_CORRECTION_PAYOUT",
+  "MARKET_CORRECTION_COLLATERAL",
+];
+const ALL_SETTLEMENT_COLLATERAL_LEDGER_TYPES = [
+  "MARKET_SETTLEMENT_COLLATERAL",
+  "MARKET_CORRECTION_COLLATERAL",
+];
+
 export async function createMarket(prisma: PrismaClient, input: CreateMarketInput) {
   return prisma.$transaction(async (tx) => {
     const actor = await tx.user.findUniqueOrThrow({ where: { id: input.actorUserId } });
@@ -230,28 +240,40 @@ export async function correctMarketResolution(
       throw domainError("MARKET_NOT_CORRECTABLE", "Only resolved markets can be corrected");
     }
 
-    const priorSettlementEntries = await tx.ledgerEntry.findMany({
+    const originalSettlementEntries = await tx.ledgerEntry.findMany({
       where: {
         marketId: input.marketId,
-        type: { in: ["MARKET_PAYOUT", "MARKET_SETTLEMENT_COLLATERAL"] },
+        type: { in: ORIGINAL_SETTLEMENT_LEDGER_TYPES },
       },
       orderBy: { createdAt: "asc" },
     });
-    if (priorSettlementEntries.length === 0) {
+    if (originalSettlementEntries.length === 0) {
       throw domainError("MISSING_SETTLEMENT_LEDGER", "Resolved market has no settlement ledger");
     }
+    const currentSettlementEntries = await currentSettlementLedgerEntries(tx, input.marketId);
 
     const operationId = randomUUID();
-    for (const entry of priorSettlementEntries) {
+    for (const entry of currentSettlementEntries) {
       if (entry.amountCents === 0) {
         continue;
       }
 
-      if (entry.userId && entry.amountCents !== 0) {
-        await tx.user.update({
-          where: { id: entry.userId },
-          data: { availableCents: { decrement: entry.amountCents } },
+      if (entry.userId && entry.amountCents > 0) {
+        const reversed = await tx.user.updateMany({
+          where: {
+            id: entry.userId,
+            availableCents: { gte: entry.amountCents },
+          },
+          data: {
+            availableCents: { decrement: entry.amountCents },
+          },
         });
+        if (reversed.count !== 1) {
+          throw domainError(
+            "INSUFFICIENT_SETTLEMENT_CLAWBACK",
+            "Insufficient available balance to reverse settlement payout",
+          );
+        }
       }
 
       await tx.ledgerEntry.create({
@@ -270,9 +292,11 @@ export async function correctMarketResolution(
       });
     }
 
-    const restoredCollateralCents = priorSettlementEntries.reduce(
+    const restoredCollateralCents = currentSettlementEntries.reduce(
       (total, entry) =>
-        entry.type === "MARKET_SETTLEMENT_COLLATERAL" ? total - entry.amountCents : total,
+        ALL_SETTLEMENT_COLLATERAL_LEDGER_TYPES.includes(entry.type)
+          ? total - entry.amountCents
+          : total,
       0,
     );
     await tx.market.update({
@@ -282,7 +306,7 @@ export async function correctMarketResolution(
       },
     });
 
-    const snapshots = positionSnapshotsFromSettlementLedger(priorSettlementEntries);
+    const snapshots = positionSnapshotsFromSettlementLedger(originalSettlementEntries);
     const totalPayoutCents = await settlePositionSnapshots(tx, {
       marketId: input.marketId,
       resolution: input.resolution,
@@ -425,4 +449,38 @@ function positionSnapshotsFromSettlementLedger(
   }
 
   return snapshots;
+}
+
+async function currentSettlementLedgerEntries(prisma: MarketsPrisma, marketId: string) {
+  const latestCollateralEntry = await prisma.ledgerEntry.findFirst({
+    where: {
+      marketId,
+      type: { in: ALL_SETTLEMENT_COLLATERAL_LEDGER_TYPES },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!latestCollateralEntry) {
+    throw domainError("MISSING_SETTLEMENT_LEDGER", "Resolved market has no settlement ledger");
+  }
+
+  const metadata = JSON.parse(latestCollateralEntry.metadataJson) as {
+    operationId?: string;
+  };
+  if (!metadata.operationId) {
+    throw domainError("MISSING_SETTLEMENT_OPERATION", "Settlement ledger is missing operation id");
+  }
+
+  const operationLedgerTypes =
+    latestCollateralEntry.type === "MARKET_SETTLEMENT_COLLATERAL"
+      ? ORIGINAL_SETTLEMENT_LEDGER_TYPES
+      : CORRECTION_SETTLEMENT_LEDGER_TYPES;
+
+  return prisma.ledgerEntry.findMany({
+    where: {
+      marketId,
+      type: { in: operationLedgerTypes },
+      metadataJson: { contains: metadata.operationId },
+    },
+    orderBy: { createdAt: "asc" },
+  });
 }

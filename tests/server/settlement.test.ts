@@ -237,4 +237,106 @@ describe("market settlement", () => {
     expect(resolutionAudits[1].actorUserId).toBe(admin.id);
     expect(correctionAudit.actorUserId).toBe(admin.id);
   });
+
+  it("admin can safely correct a market more than once", async () => {
+    const admin = await createUser("RepeatAdmin", 0, "ADMIN");
+    const yesTrader = await createUser("RepeatYes", 1000);
+    const noTrader = await createUser("RepeatNo", 1000);
+    const market = await createMarket(admin.id);
+    await createPrimaryFill({
+      yesUserId: yesTrader.id,
+      noUserId: noTrader.id,
+      marketId: market.id,
+      quantity: 1,
+    });
+    await resolveMarket(prisma, {
+      actorUserId: yesTrader.id,
+      marketId: market.id,
+      resolution: "YES",
+      note: "initial call",
+    });
+    await correctMarketResolution(prisma, {
+      actorUserId: admin.id,
+      marketId: market.id,
+      resolution: "NO",
+      note: "first correction",
+    });
+
+    await correctMarketResolution(prisma, {
+      actorUserId: admin.id,
+      marketId: market.id,
+      resolution: "CANCELLED",
+      note: "second correction",
+    });
+
+    const updatedMarket = await prisma.market.findUniqueOrThrow({ where: { id: market.id } });
+    const updatedYesTrader = await prisma.user.findUniqueOrThrow({ where: { id: yesTrader.id } });
+    const updatedNoTrader = await prisma.user.findUniqueOrThrow({ where: { id: noTrader.id } });
+    const reversalEntries = await prisma.ledgerEntry.findMany({
+      where: { type: "MARKET_PAYOUT_REVERSAL" },
+      orderBy: { amountCents: "asc" },
+    });
+    const resolutionAudits = await prisma.auditLog.findMany({
+      where: { action: "MARKET_RESOLVED" },
+      orderBy: { createdAt: "asc" },
+    });
+
+    expect(updatedMarket.resolution).toBe("CANCELLED");
+    expect(updatedMarket.collateralCents).toBe(0);
+    expect(updatedYesTrader.availableCents).toBe(990);
+    expect(updatedNoTrader.availableCents).toBe(1010);
+    expect(reversalEntries.map((entry) => entry.amountCents)).toEqual([-100, -100, 100, 100]);
+    expect(resolutionAudits).toHaveLength(3);
+  });
+
+  it("rejects correction when the current payout cannot be clawed back", async () => {
+    const admin = await createUser("ClawbackAdmin", 0, "ADMIN");
+    const yesTrader = await createUser("ClawbackYes", 1000);
+    const noTrader = await createUser("ClawbackNo", 1000);
+    const market = await createMarket(admin.id);
+    await createPrimaryFill({
+      yesUserId: yesTrader.id,
+      noUserId: noTrader.id,
+      marketId: market.id,
+      quantity: 1,
+    });
+    await resolveMarket(prisma, {
+      actorUserId: yesTrader.id,
+      marketId: market.id,
+      resolution: "YES",
+      note: "initial call",
+    });
+    await prisma.user.update({
+      where: { id: yesTrader.id },
+      data: { availableCents: 40 },
+    });
+    const beforeMarket = await prisma.market.findUniqueOrThrow({ where: { id: market.id } });
+    const beforeNoTrader = await prisma.user.findUniqueOrThrow({ where: { id: noTrader.id } });
+    const beforeLedgerCount = await prisma.ledgerEntry.count();
+    const beforeAuditCount = await prisma.auditLog.count();
+
+    await expect(
+      correctMarketResolution(prisma, {
+        actorUserId: admin.id,
+        marketId: market.id,
+        resolution: "NO",
+        note: "cannot claw back",
+      }),
+    ).rejects.toThrow("Insufficient available balance to reverse settlement payout");
+
+    const afterMarket = await prisma.market.findUniqueOrThrow({ where: { id: market.id } });
+    const afterYesTrader = await prisma.user.findUniqueOrThrow({ where: { id: yesTrader.id } });
+    const afterNoTrader = await prisma.user.findUniqueOrThrow({ where: { id: noTrader.id } });
+    const afterLedgerCount = await prisma.ledgerEntry.count();
+    const afterAuditCount = await prisma.auditLog.count();
+
+    expect(afterMarket.resolution).toBe(beforeMarket.resolution);
+    expect(afterMarket.resolutionNote).toBe(beforeMarket.resolutionNote);
+    expect(afterMarket.resolvedById).toBe(beforeMarket.resolvedById);
+    expect(afterMarket.collateralCents).toBe(beforeMarket.collateralCents);
+    expect(afterYesTrader.availableCents).toBe(40);
+    expect(afterNoTrader.availableCents).toBe(beforeNoTrader.availableCents);
+    expect(afterLedgerCount).toBe(beforeLedgerCount);
+    expect(afterAuditCount).toBe(beforeAuditCount);
+  });
 });
