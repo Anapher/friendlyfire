@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/server/db";
 import { adjustUserBalance } from "@/server/ledger";
-import { addUserToMarketBlacklist, createMarket, resolveMarket } from "@/server/markets";
+import {
+  addUserToMarketBlacklist,
+  correctMarketResolution,
+  createMarket,
+  resolveMarket,
+} from "@/server/markets";
 import { cancelOrder, placeLimitOrder } from "@/server/orders";
 
 async function demoActorId() {
@@ -91,6 +96,19 @@ export async function resolveMarketAction(formData: FormData) {
   });
   revalidatePath(`/markets/${marketId}`);
   revalidatePath("/");
+}
+
+export async function correctMarketResolutionAction(formData: FormData) {
+  const marketId = formString(formData, "marketId");
+  await correctMarketResolution(db, {
+    actorUserId: formString(formData, "userId"),
+    marketId,
+    resolution: parseEnum(formData, "resolution", ["YES", "NO", "CANCELLED"] as const),
+    note: formString(formData, "note"),
+  });
+  revalidatePath(`/markets/${marketId}`);
+  revalidatePath("/");
+  revalidatePath("/admin");
 }
 
 export async function adjustBalanceAction(formData: FormData) {

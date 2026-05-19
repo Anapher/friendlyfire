@@ -59,6 +59,13 @@ describe("markets", () => {
     expect(market.status).toBe("OPEN");
     expect(market.question).toBe("Will dinner happen?");
     expect(market.creatorId).toBe(creator.id);
+    await expect(
+      prisma.auditLog.findFirstOrThrow({ where: { action: "MARKET_CREATED" } }),
+    ).resolves.toMatchObject({
+      entityType: "Market",
+      entityId: market.id,
+      actorUserId: creator.id,
+    });
   });
 
   it("blacklisting cancels the user's open orders and releases locked cash and shares", async () => {
@@ -144,7 +151,10 @@ describe("markets", () => {
     expect(updatedPosition.lockedQuantity).toBe(0);
     expect(updatedPosition.availableQuantity).toBe(5);
     expect(blacklistEntry.note).toBe("controls outcome");
-    expect(auditEntries).toHaveLength(1);
+    expect(auditEntries.map((entry) => entry.action).sort()).toEqual([
+      "MARKET_CREATED",
+      "MARKET_USER_BLACKLISTED",
+    ]);
   });
 
   it("closes expired open markets and cancels resting orders", async () => {

@@ -57,6 +57,13 @@ describe("orders", () => {
     expect(order.lockedCents).toBe(120);
     expect(updatedUser.availableCents).toBe(880);
     expect(updatedUser.lockedCents).toBe(120);
+    await expect(
+      prisma.ledgerEntry.findFirstOrThrow({ where: { type: "ORDER_CASH_LOCKED" } }),
+    ).resolves.toMatchObject({
+      userId: user.id,
+      marketId: market.id,
+      amountCents: -120,
+    });
   });
 
   it("locks owned shares for an unmatched sell order", async () => {
@@ -135,6 +142,39 @@ describe("orders", () => {
     const unchanged = await prisma.user.findUniqueOrThrow({ where: { id: trader.id } });
     expect(unchanged.availableCents).toBe(1000);
     expect(unchanged.lockedCents).toBe(0);
+  });
+
+  it("closes an expired market and rejects new order placement", async () => {
+    const user = await createUser("LateBuyer", 1000);
+    const market = await prisma.market.create({
+      data: {
+        creatorId: user.id,
+        question: "Already over?",
+        description: "Past market",
+        resolutionCriteria: "Closed already.",
+        closeTime: new Date("2020-01-01T00:00:00.000Z"),
+        status: "OPEN",
+      },
+    });
+
+    await expect(
+      placeLimitOrder(prisma, {
+        userId: user.id,
+        marketId: market.id,
+        outcome: "YES",
+        action: "BUY",
+        limitPriceCents: 40,
+        quantity: 1,
+      }),
+    ).rejects.toThrow("Market close time has passed");
+
+    const updatedMarket = await prisma.market.findUniqueOrThrow({ where: { id: market.id } });
+    const updatedUser = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
+
+    expect(updatedMarket.status).toBe("CLOSED");
+    expect(updatedUser.availableCents).toBe(1000);
+    expect(updatedUser.lockedCents).toBe(0);
+    await expect(prisma.order.count()).resolves.toBe(0);
   });
 
   it("matches complementary YES and NO buys into positions and market collateral", async () => {
@@ -291,6 +331,11 @@ describe("orders", () => {
     expect(updatedBuyer.availableCents).toBe(970);
     expect(updatedBuyer.lockedCents).toBe(0);
     expect(persistedBuy.lockedCents).toBe(0);
+    await expect(
+      prisma.ledgerEntry.findFirstOrThrow({
+        where: { type: "ORDER_CASH_RELEASED", userId: buyer.id },
+      }),
+    ).resolves.toMatchObject({ amountCents: 20 });
   });
 
   it("leaves the unmatched remainder of a partially filled order open", async () => {
@@ -371,5 +416,10 @@ describe("orders", () => {
     expect(updatedOwner.availableCents).toBe(1000);
     expect(updatedOwner.lockedCents).toBe(0);
     expect(auditEntry.entityId).toBe(order.id);
+    await expect(
+      prisma.ledgerEntry.findFirstOrThrow({
+        where: { type: "ORDER_CASH_RELEASED", userId: owner.id },
+      }),
+    ).resolves.toMatchObject({ amountCents: 100 });
   });
 });

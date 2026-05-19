@@ -59,7 +59,7 @@ export async function createMarket(prisma: PrismaClient, input: CreateMarketInpu
       throw domainError("INVALID_CLOSE_TIME", "Market close time must be in the future");
     }
 
-    return tx.market.create({
+    const market = await tx.market.create({
       data: {
         creatorId: input.actorUserId,
         question: input.question,
@@ -69,6 +69,20 @@ export async function createMarket(prisma: PrismaClient, input: CreateMarketInpu
         status: "OPEN",
       },
     });
+
+    await audit(tx, {
+      actorUserId: input.actorUserId,
+      action: "MARKET_CREATED",
+      entityType: "Market",
+      entityId: market.id,
+      metadata: {
+        marketId: market.id,
+        question: input.question,
+        closeTime: input.closeTime.toISOString(),
+      },
+    });
+
+    return market;
   });
 }
 

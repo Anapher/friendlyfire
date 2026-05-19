@@ -142,7 +142,7 @@ describe("market settlement", () => {
     const creator = await createUser("CloseCreator", 1000);
     const yesTrader = await createUser("CloseYes", 1000);
     const noTrader = await createUser("CloseNo", 1000);
-    const market = await createMarket(creator.id, new Date("2026-05-18T12:00:00.000Z"));
+    const market = await createMarket(creator.id);
     await createPrimaryFill({
       yesUserId: yesTrader.id,
       noUserId: noTrader.id,
@@ -150,7 +150,7 @@ describe("market settlement", () => {
       quantity: 2,
     });
 
-    await closeExpiredMarkets(prisma, new Date("2026-05-19T12:00:00.000Z"));
+    await closeExpiredMarkets(prisma, new Date(Date.now() + 172_800_000));
     await expect(
       placeLimitOrder(prisma, {
         userId: yesTrader.id,

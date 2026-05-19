@@ -24,10 +24,30 @@ export type CancelOrderInput = {
 const CANCELLABLE_ORDER_STATUSES = ["OPEN", "PARTIALLY_FILLED"];
 
 export async function placeLimitOrder(prisma: PrismaClient, input: PlaceLimitOrderInput) {
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const market = await tx.market.findUniqueOrThrow({ where: { id: input.marketId } });
     if (market.status !== "OPEN") {
       throw domainError("MARKET_NOT_OPEN", "Only open markets can accept orders");
+    }
+    if (market.closeTime.getTime() <= Date.now()) {
+      const cancelledOrderIds = await cancelRestingOrders(tx, { marketId: market.id });
+      await tx.market.update({
+        where: { id: market.id },
+        data: { status: "CLOSED" },
+      });
+      await audit(tx, {
+        action: "MARKET_CLOSED",
+        entityType: "Market",
+        entityId: market.id,
+        metadata: {
+          marketId: market.id,
+          closedAt: new Date().toISOString(),
+          closeTime: market.closeTime.toISOString(),
+          cancelledOrderIds,
+          reason: "ORDER_AFTER_CLOSE_TIME",
+        },
+      });
+      return { closed: true as const };
     }
 
     const actor = await tx.user.findUniqueOrThrow({ where: { id: input.userId } });
@@ -87,8 +107,17 @@ export async function placeLimitOrder(prisma: PrismaClient, input: PlaceLimitOrd
       await persistFill(tx, fill);
     }
 
-    return tx.order.findUniqueOrThrow({ where: { id: order.id } });
+    return {
+      closed: false as const,
+      order: await tx.order.findUniqueOrThrow({ where: { id: order.id } }),
+    };
   });
+
+  if (result.closed) {
+    throw domainError("MARKET_CLOSED", "Market close time has passed");
+  }
+
+  return result.order;
 }
 
 export async function cancelOrder(prisma: PrismaClient, input: CancelOrderInput) {
@@ -182,7 +211,7 @@ async function lockCashAndCreateOrder(
     throw domainError("INSUFFICIENT_BALANCE", "Insufficient cash available");
   }
 
-  return prisma.order.create({
+  const order = await prisma.order.create({
     data: {
       userId: input.userId,
       marketId: input.marketId,
@@ -195,6 +224,23 @@ async function lockCashAndCreateOrder(
       status: "OPEN",
     },
   });
+
+  await prisma.ledgerEntry.create({
+    data: {
+      userId: input.userId,
+      marketId: input.marketId,
+      type: "ORDER_CASH_LOCKED",
+      amountCents: -lockedCents,
+      metadataJson: JSON.stringify({
+        orderId: order.id,
+        lockedCents,
+        limitPriceCents,
+        quantity,
+      }),
+    },
+  });
+
+  return order;
 }
 
 async function lockSharesAndCreateOrder(
@@ -401,6 +447,21 @@ async function spendLockedCash(
       lockedCents: { decrement: reservedCents },
     },
   });
+  if (surplusCents > 0) {
+    await prisma.ledgerEntry.create({
+      data: {
+        userId: order.userId,
+        marketId: order.marketId,
+        type: "ORDER_CASH_RELEASED",
+        amountCents: surplusCents,
+        metadataJson: JSON.stringify({
+          orderId: order.id,
+          releasedCents: surplusCents,
+          reason: "FILL_BELOW_LIMIT",
+        }),
+      },
+    });
+  }
   await applyOrderFill(prisma, order, quantity, {
     lockedCents: { decrement: reservedCents },
   });
@@ -478,6 +539,18 @@ async function releaseOrderLocks(prisma: OrdersPrisma, order: Order) {
       data: {
         availableCents: { increment: order.lockedCents },
         lockedCents: { decrement: order.lockedCents },
+      },
+    });
+    await prisma.ledgerEntry.create({
+      data: {
+        userId: order.userId,
+        marketId: order.marketId,
+        type: "ORDER_CASH_RELEASED",
+        amountCents: order.lockedCents,
+        metadataJson: JSON.stringify({
+          orderId: order.id,
+          releasedCents: order.lockedCents,
+        }),
       },
     });
   }

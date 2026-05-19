@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   blacklistUserAction,
   cancelOrderAction,
+  correctMarketResolutionAction,
   placeOrderAction,
   resolveMarketAction,
 } from "../../actions";
@@ -427,6 +428,39 @@ export default async function MarketPage({ params }: MarketPageProps) {
             </label>
             <button type="submit">Resolve</button>
           </form>
+          {market.status === "RESOLVED" ? (
+            <>
+              <h3>Admin correction</h3>
+              <form action={correctMarketResolutionAction} className="form-grid single-column">
+                <input type="hidden" name="marketId" value={market.id} />
+                <label>
+                  Admin
+                  <select name="userId" required>
+                    {users
+                      .filter((user) => user.role === "ADMIN")
+                      .map((user) => (
+                        <option key={user.id} value={user.id}>
+                          {user.name}
+                        </option>
+                      ))}
+                  </select>
+                </label>
+                <label>
+                  Corrected result
+                  <select name="resolution" defaultValue={market.resolution ?? "YES"} required>
+                    <option value="YES">YES</option>
+                    <option value="NO">NO</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                  </select>
+                </label>
+                <label>
+                  Correction note
+                  <textarea name="note" rows={3} />
+                </label>
+                <button type="submit">Correct resolution</button>
+              </form>
+            </>
+          ) : null}
         </div>
       </section>
     </main>
