@@ -20,8 +20,8 @@ export async function adjustUserBalance(
 
     const type = input.amountCents >= 0 ? "ADMIN_CREDIT" : "ADMIN_DEBIT";
     const operationId = randomUUID();
-    const target = await tx.user.findUniqueOrThrow({ where: { id: input.targetUserId } });
-    let balanceBeforeCents = target.availableCents;
+    await tx.user.findUniqueOrThrow({ where: { id: input.targetUserId } });
+    let balanceBeforeCents: number;
     let updated: User;
 
     if (input.amountCents >= 0) {
@@ -29,6 +29,7 @@ export async function adjustUserBalance(
         where: { id: input.targetUserId },
         data: { availableCents: { increment: input.amountCents } },
       });
+      balanceBeforeCents = updated.availableCents - input.amountCents;
     } else {
       const debitAmount = Math.abs(input.amountCents);
       const debit = await tx.user.updateMany({
