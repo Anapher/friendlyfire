@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@prisma/client";
+import type { PrismaClient, User } from "@prisma/client";
+import { randomUUID } from "node:crypto";
 import { domainError } from "@/domain/errors";
 import { audit } from "./audit";
 
@@ -17,28 +18,52 @@ export async function adjustUserBalance(
       throw domainError("UNAUTHORIZED_ADMIN_ACTION", "Only admins can adjust balances");
     }
 
+    const type = input.amountCents >= 0 ? "ADMIN_CREDIT" : "ADMIN_DEBIT";
+    const operationId = randomUUID();
     const target = await tx.user.findUniqueOrThrow({ where: { id: input.targetUserId } });
-    if (target.availableCents + input.amountCents < 0) {
-      throw domainError(
-        "INSUFFICIENT_BALANCE",
-        "Adjustment would make available balance negative",
-      );
+    let balanceBeforeCents = target.availableCents;
+    let updated: User;
+
+    if (input.amountCents >= 0) {
+      updated = await tx.user.update({
+        where: { id: input.targetUserId },
+        data: { availableCents: { increment: input.amountCents } },
+      });
+    } else {
+      const debitAmount = Math.abs(input.amountCents);
+      const debit = await tx.user.updateMany({
+        where: {
+          id: input.targetUserId,
+          availableCents: { gte: debitAmount },
+        },
+        data: { availableCents: { decrement: debitAmount } },
+      });
+
+      if (debit.count !== 1) {
+        throw domainError(
+          "INSUFFICIENT_BALANCE",
+          "Adjustment would make available balance negative",
+        );
+      }
+
+      updated = await tx.user.findUniqueOrThrow({ where: { id: input.targetUserId } });
+      balanceBeforeCents = updated.availableCents + debitAmount;
     }
 
-    const type = input.amountCents >= 0 ? "ADMIN_CREDIT" : "ADMIN_DEBIT";
-    const updated = await tx.user.update({
-      where: { id: input.targetUserId },
-      data: { availableCents: { increment: input.amountCents } },
-    });
+    const balanceAfterCents = updated.availableCents;
 
-    await tx.ledgerEntry.create({
+    const ledgerEntry = await tx.ledgerEntry.create({
       data: {
         userId: input.targetUserId,
         type,
         amountCents: input.amountCents,
         metadataJson: JSON.stringify({
+          operationId,
           note: input.note,
           actorUserId: input.actorUserId,
+          targetUserId: input.targetUserId,
+          balanceBeforeCents,
+          balanceAfterCents,
         }),
       },
     });
@@ -49,8 +74,14 @@ export async function adjustUserBalance(
       entityType: "User",
       entityId: input.targetUserId,
       metadata: {
+        operationId,
+        ledgerEntryId: ledgerEntry.id,
         amountCents: input.amountCents,
         note: input.note,
+        actorUserId: input.actorUserId,
+        targetUserId: input.targetUserId,
+        balanceBeforeCents,
+        balanceAfterCents,
       },
     });
 
