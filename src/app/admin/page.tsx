@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { adjustBalanceAction } from "../actions";
+import { adjustBalanceAction, createUserAction } from "../actions";
 import { db } from "@/server/db";
 
 export const dynamic = "force-dynamic";
@@ -58,6 +58,46 @@ export default async function AdminPage() {
             ) : null}
           </tbody>
         </table>
+      </section>
+
+      <section>
+        <h2>Create User</h2>
+        <form action={createUserAction} className="form-grid compact-form">
+          <label>
+            Admin Actor
+            <select name="actorUserId" required>
+              {actorOptions.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name} ({user.role})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Name
+            <input name="name" required placeholder="New Friend" />
+          </label>
+          <label>
+            Email
+            <input name="email" type="email" required placeholder="friend@example.com" />
+          </label>
+          <label>
+            Role
+            <select name="role" defaultValue="USER" required>
+              <option value="USER">USER</option>
+              <option value="ADMIN">ADMIN</option>
+            </select>
+          </label>
+          <label>
+            Starting Balance Cents
+            <input name="startingBalanceCents" type="number" min={0} step={1} defaultValue={0} required />
+          </label>
+          <label className="checkbox-label">
+            <input name="digestOptOut" type="checkbox" />
+            Digest opt-out
+          </label>
+          <button type="submit">Create User</button>
+        </form>
       </section>
 
       <section>

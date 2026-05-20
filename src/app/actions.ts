@@ -10,6 +10,7 @@ import {
   resolveMarket,
 } from "@/server/markets";
 import { cancelOrder, placeLimitOrder } from "@/server/orders";
+import { createUser } from "@/server/users";
 
 async function demoActorId() {
   const user = await db.user.findFirstOrThrow({ orderBy: { createdAt: "asc" } });
@@ -49,6 +50,14 @@ function parseNonZeroInteger(formData: FormData, key: string) {
   const value = parseInteger(formData, key);
   if (value === 0) {
     throw new Error(`${key} must be non-zero`);
+  }
+  return value;
+}
+
+function parseNonNegativeInteger(formData: FormData, key: string) {
+  const value = parseInteger(formData, key);
+  if (value < 0) {
+    throw new Error(`${key} must be non-negative`);
   }
   return value;
 }
@@ -116,6 +125,19 @@ export async function adjustBalanceAction(formData: FormData) {
     targetUserId: formString(formData, "targetUserId"),
     amountCents: parseNonZeroInteger(formData, "amountCents"),
     note: formString(formData, "note"),
+  });
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+export async function createUserAction(formData: FormData) {
+  await createUser(db, {
+    actorUserId: formString(formData, "actorUserId"),
+    name: formString(formData, "name"),
+    email: formString(formData, "email"),
+    role: parseEnum(formData, "role", ["USER", "ADMIN"] as const),
+    startingBalanceCents: parseNonNegativeInteger(formData, "startingBalanceCents"),
+    digestOptOut: formData.get("digestOptOut") === "on",
   });
   revalidatePath("/admin");
   revalidatePath("/");

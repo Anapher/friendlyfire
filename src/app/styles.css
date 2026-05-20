@@ -132,6 +132,17 @@ label {
   text-transform: uppercase;
 }
 
+.checkbox-label {
+  align-content: flex-end;
+  align-items: center;
+  display: flex;
+  min-height: 34px;
+}
+
+.checkbox-label input {
+  min-height: 0;
+}
+
 input,
 select,
 textarea,
