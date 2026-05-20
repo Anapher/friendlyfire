@@ -83,11 +83,23 @@ section,
   gap: 16px;
 }
 
+.page-header nav {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
 .page-header p,
-.muted {
+.muted,
+.signed-in {
   color: var(--muted);
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.signed-in {
+  font-size: 12px;
+  font-weight: 700;
 }
 
 table {
@@ -171,6 +183,24 @@ button:hover {
   background: var(--accent-strong);
 }
 
+.error,
+.notice {
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.error {
+  background: #fff1f2;
+  border: 1px solid #fecdd3;
+  color: var(--danger);
+}
+
+.notice {
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #065f46;
+}
+
 td button {
   min-height: 28px;
   padding: 3px 8px;
@@ -223,6 +253,17 @@ td button {
   display: grid;
   gap: 16px;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.auth-main {
+  align-content: center;
+  max-width: 480px;
+  min-height: 100vh;
+}
+
+.auth-panel {
+  display: grid;
+  gap: 14px;
 }
 
 @media (max-width: 900px) {

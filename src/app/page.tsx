@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createMarketAction } from "./actions";
+import { createMarketAction, logoutAction } from "./actions";
+import { requireCurrentUser } from "@/server/auth";
 import { db } from "@/server/db";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +14,7 @@ function dateTimeInputValue(date: Date) {
 }
 
 export default async function HomePage() {
+  const currentUser = await requireCurrentUser();
   const [markets, users] = await Promise.all([
     db.market.findMany({
       where: { status: "OPEN" },
@@ -31,7 +33,11 @@ export default async function HomePage() {
           <p>Local private prediction markets</p>
         </div>
         <nav>
-          <Link href="/admin">Admin</Link>
+          <span className="signed-in">Signed in as {currentUser.name}</span>
+          {currentUser.role === "ADMIN" ? <Link href="/admin">Admin</Link> : null}
+          <form action={logoutAction}>
+            <button type="submit">Logout</button>
+          </form>
         </nav>
       </header>
 
@@ -71,16 +77,6 @@ export default async function HomePage() {
       <section>
         <h2>Create Market</h2>
         <form action={createMarketAction} className="form-grid">
-          <label>
-            Creator
-            <select name="actorUserId" required>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} ({user.role})
-                </option>
-              ))}
-            </select>
-          </label>
           <label className="span-2">
             Question
             <input name="question" required placeholder="Will the demo work?" />

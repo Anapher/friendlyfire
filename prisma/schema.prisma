@@ -30,6 +30,33 @@ model User {
   positions         Position[]
   ledgerEntries     LedgerEntry[]
   auditLogs         AuditLog[]         @relation("AuditActor")
+  magicLoginTokens  MagicLoginToken[]
+  sessions          Session[]
+}
+
+model MagicLoginToken {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
 }
 
 model Market {

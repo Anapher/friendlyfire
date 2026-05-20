@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { db } from "@/server/db";
 import { adjustUserBalance } from "@/server/ledger";
 import {
@@ -11,11 +13,13 @@ import {
 } from "@/server/markets";
 import { cancelOrder, placeLimitOrder } from "@/server/orders";
 import { createUser } from "@/server/users";
-
-async function demoActorId() {
-  const user = await db.user.findFirstOrThrow({ orderBy: { createdAt: "asc" } });
-  return user.id;
-}
+import {
+  clearCurrentSession,
+  requestMagicLink,
+  requireAdminUser,
+  requireCurrentUser,
+} from "@/server/auth";
+import { consoleEmailAdapter } from "@/server/emailAdapter";
 
 function formString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");
@@ -62,9 +66,26 @@ function parseNonNegativeInteger(formData: FormData, key: string) {
   return value;
 }
 
+export async function requestMagicLinkAction(formData: FormData) {
+  assertConsoleEmailAllowed();
+  await requestMagicLink(
+    db,
+    formString(formData, "email"),
+    consoleEmailAdapter,
+    await requestBaseUrl(),
+  );
+  redirect("/login?sent=1");
+}
+
+export async function logoutAction() {
+  await clearCurrentSession(db);
+  redirect("/login");
+}
+
 export async function createMarketAction(formData: FormData) {
+  const currentUser = await requireCurrentUser();
   await createMarket(db, {
-    actorUserId: formString(formData, "actorUserId") || (await demoActorId()),
+    actorUserId: currentUser.id,
     question: formString(formData, "question"),
     resolutionCriteria: formString(formData, "resolutionCriteria"),
     closeTime: new Date(formString(formData, "closeTime")),
@@ -73,9 +94,10 @@ export async function createMarketAction(formData: FormData) {
 }
 
 export async function placeOrderAction(formData: FormData) {
+  const currentUser = await requireCurrentUser();
   const marketId = formString(formData, "marketId");
   await placeLimitOrder(db, {
-    userId: formString(formData, "userId"),
+    userId: currentUser.id,
     marketId,
     outcome: parseEnum(formData, "outcome", ["YES", "NO"] as const),
     action: parseEnum(formData, "action", ["BUY", "SELL"] as const),
@@ -86,18 +108,20 @@ export async function placeOrderAction(formData: FormData) {
 }
 
 export async function cancelOrderAction(formData: FormData) {
+  const currentUser = await requireCurrentUser();
   const marketId = formString(formData, "marketId");
   await cancelOrder(db, {
-    actorUserId: formString(formData, "userId"),
+    actorUserId: currentUser.id,
     orderId: formString(formData, "orderId"),
   });
   revalidatePath(`/markets/${marketId}`);
 }
 
 export async function resolveMarketAction(formData: FormData) {
+  const currentUser = await requireCurrentUser();
   const marketId = formString(formData, "marketId");
   await resolveMarket(db, {
-    actorUserId: formString(formData, "userId"),
+    actorUserId: currentUser.id,
     marketId,
     resolution: parseEnum(formData, "resolution", ["YES", "NO", "CANCELLED"] as const),
     note: formString(formData, "note"),
@@ -107,9 +131,10 @@ export async function resolveMarketAction(formData: FormData) {
 }
 
 export async function correctMarketResolutionAction(formData: FormData) {
+  const currentUser = await requireAdminUser();
   const marketId = formString(formData, "marketId");
   await correctMarketResolution(db, {
-    actorUserId: formString(formData, "userId"),
+    actorUserId: currentUser.id,
     marketId,
     resolution: parseEnum(formData, "resolution", ["YES", "NO", "CANCELLED"] as const),
     note: formString(formData, "note"),
@@ -120,8 +145,9 @@ export async function correctMarketResolutionAction(formData: FormData) {
 }
 
 export async function adjustBalanceAction(formData: FormData) {
+  const currentUser = await requireAdminUser();
   await adjustUserBalance(db, {
-    actorUserId: formString(formData, "actorUserId"),
+    actorUserId: currentUser.id,
     targetUserId: formString(formData, "targetUserId"),
     amountCents: parseNonZeroInteger(formData, "amountCents"),
     note: formString(formData, "note"),
@@ -131,8 +157,9 @@ export async function adjustBalanceAction(formData: FormData) {
 }
 
 export async function createUserAction(formData: FormData) {
+  const currentUser = await requireAdminUser();
   await createUser(db, {
-    actorUserId: formString(formData, "actorUserId"),
+    actorUserId: currentUser.id,
     name: formString(formData, "name"),
     email: formString(formData, "email"),
     role: parseEnum(formData, "role", ["USER", "ADMIN"] as const),
@@ -144,12 +171,45 @@ export async function createUserAction(formData: FormData) {
 }
 
 export async function blacklistUserAction(formData: FormData) {
+  const currentUser = await requireCurrentUser();
   const marketId = formString(formData, "marketId");
   await addUserToMarketBlacklist(db, {
-    actorUserId: formString(formData, "actorUserId"),
+    actorUserId: currentUser.id,
     marketId,
     userId: formString(formData, "userId"),
     note: formString(formData, "note"),
   });
   revalidatePath(`/markets/${marketId}`);
+}
+
+async function requestBaseUrl() {
+  const configuredUrl = process.env.APP_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL;
+  if (configuredUrl) {
+    return normalizeBaseUrl(configuredUrl);
+  }
+
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("APP_BASE_URL must be configured before sending magic links in production");
+  }
+
+  const headerStore = await headers();
+  const host = headerStore.get("host") ?? "localhost:3000";
+  const localHosts = ["localhost", "127.0.0.1", "[::1]", "::1"];
+  const hostname = new URL(`http://${host}`).hostname;
+  const proto = headerStore.get("x-forwarded-proto") ?? (localHosts.includes(hostname) ? "http" : "https");
+  return normalizeBaseUrl(`${proto}://${host}`);
+}
+
+function assertConsoleEmailAllowed() {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_CONSOLE_EMAILS !== "true") {
+    throw new Error("Console email delivery is disabled in production");
+  }
+}
+
+function normalizeBaseUrl(rawUrl: string) {
+  const url = new URL(rawUrl);
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("APP_BASE_URL must use http or https");
+  }
+  return url.origin;
 }

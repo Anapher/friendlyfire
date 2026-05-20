@@ -30,6 +30,8 @@ export function createIsolatedPrisma(prefix: string) {
 }
 
 export async function resetTestDb(prisma: PrismaClient) {
+  await prisma.session.deleteMany();
+  await prisma.magicLoginToken.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.ledgerEntry.deleteMany();
   await prisma.marketBlacklist.deleteMany();

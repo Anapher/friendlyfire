@@ -4,9 +4,11 @@ import {
   blacklistUserAction,
   cancelOrderAction,
   correctMarketResolutionAction,
+  logoutAction,
   placeOrderAction,
   resolveMarketAction,
 } from "../../actions";
+import { requireCurrentUser } from "@/server/auth";
 import { db } from "@/server/db";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +63,7 @@ function summarizeBook(
 }
 
 export default async function MarketPage({ params }: MarketPageProps) {
+  const currentUser = await requireCurrentUser();
   const { marketId } = await params;
   const [market, users] = await Promise.all([
     db.market.findUnique({
@@ -112,7 +115,11 @@ export default async function MarketPage({ params }: MarketPageProps) {
           <h1>{market.question}</h1>
         </div>
         <nav>
-          <Link href="/admin">Admin</Link>
+          <span className="signed-in">Signed in as {currentUser.name}</span>
+          {currentUser.role === "ADMIN" ? <Link href="/admin">Admin</Link> : null}
+          <form action={logoutAction}>
+            <button type="submit">Logout</button>
+          </form>
         </nav>
       </header>
 
@@ -188,16 +195,6 @@ export default async function MarketPage({ params }: MarketPageProps) {
         <form action={placeOrderAction} className="form-grid compact-form">
           <input type="hidden" name="marketId" value={market.id} />
           <label>
-            User
-            <select name="userId" required>
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} ({money(user.availableCents)} available)
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
             Outcome
             <select name="outcome" defaultValue="YES" required>
               <option value="YES">YES</option>
@@ -255,12 +252,13 @@ export default async function MarketPage({ params }: MarketPageProps) {
                 </td>
                 <td>{order.status}</td>
                 <td>
-                  <form action={cancelOrderAction}>
-                    <input type="hidden" name="marketId" value={market.id} />
-                    <input type="hidden" name="orderId" value={order.id} />
-                    <input type="hidden" name="userId" value={order.userId} />
-                    <button type="submit">Cancel</button>
-                  </form>
+                  {order.userId === currentUser.id ? (
+                    <form action={cancelOrderAction}>
+                      <input type="hidden" name="marketId" value={market.id} />
+                      <input type="hidden" name="orderId" value={order.id} />
+                      <button type="submit">Cancel</button>
+                    </form>
+                  ) : null}
                 </td>
               </tr>
             ))}
@@ -349,16 +347,6 @@ export default async function MarketPage({ params }: MarketPageProps) {
           <form action={blacklistUserAction} className="form-grid single-column">
             <input type="hidden" name="marketId" value={market.id} />
             <label>
-              Actor
-              <select name="actorUserId" required>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.role})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
               User
               <select name="userId" required>
                 {users.map((user) => (
@@ -404,16 +392,6 @@ export default async function MarketPage({ params }: MarketPageProps) {
           <form action={resolveMarketAction} className="form-grid single-column">
             <input type="hidden" name="marketId" value={market.id} />
             <label>
-              Resolver
-              <select name="userId" required>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.name} ({user.role})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
               Result
               <select name="resolution" defaultValue="YES" required>
                 <option value="YES">YES</option>
@@ -427,23 +405,11 @@ export default async function MarketPage({ params }: MarketPageProps) {
             </label>
             <button type="submit">Resolve</button>
           </form>
-          {market.status === "RESOLVED" ? (
+          {market.status === "RESOLVED" && currentUser.role === "ADMIN" ? (
             <>
               <h3>Admin correction</h3>
               <form action={correctMarketResolutionAction} className="form-grid single-column">
                 <input type="hidden" name="marketId" value={market.id} />
-                <label>
-                  Admin
-                  <select name="userId" required>
-                    {users
-                      .filter((user) => user.role === "ADMIN")
-                      .map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.name}
-                        </option>
-                      ))}
-                  </select>
-                </label>
                 <label>
                   Corrected result
                   <select name="resolution" defaultValue={market.resolution ?? "YES"} required>

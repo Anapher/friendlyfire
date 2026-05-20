@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { adjustBalanceAction, createUserAction } from "../actions";
+import { redirect } from "next/navigation";
+import { adjustBalanceAction, createUserAction, logoutAction } from "../actions";
+import { requireCurrentUser } from "@/server/auth";
 import { db } from "@/server/db";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +11,11 @@ function money(cents: number) {
 }
 
 export default async function AdminPage() {
+  const currentUser = await requireCurrentUser();
+  if (currentUser.role !== "ADMIN") {
+    redirect("/");
+  }
   const users = await db.user.findMany({ orderBy: [{ role: "asc" }, { name: "asc" }] });
-  const admins = users.filter((user) => user.role === "ADMIN");
-  const actorOptions = admins.length > 0 ? admins : users;
 
   return (
     <main>
@@ -21,6 +25,12 @@ export default async function AdminPage() {
           <h1>Admin</h1>
           <p>Users and balance adjustments</p>
         </div>
+        <nav>
+          <span className="signed-in">Signed in as {currentUser.name}</span>
+          <form action={logoutAction}>
+            <button type="submit">Logout</button>
+          </form>
+        </nav>
       </header>
 
       <section>
@@ -64,16 +74,6 @@ export default async function AdminPage() {
         <h2>Create User</h2>
         <form action={createUserAction} className="form-grid compact-form">
           <label>
-            Admin Actor
-            <select name="actorUserId" required>
-              {actorOptions.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} ({user.role})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
             Name
             <input name="name" required placeholder="New Friend" />
           </label>
@@ -103,16 +103,6 @@ export default async function AdminPage() {
       <section>
         <h2>Adjust Balance</h2>
         <form action={adjustBalanceAction} className="form-grid compact-form">
-          <label>
-            Admin Actor
-            <select name="actorUserId" required>
-              {actorOptions.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} ({user.role})
-                </option>
-              ))}
-            </select>
-          </label>
           <label>
             Target User
             <select name="targetUserId" required>
