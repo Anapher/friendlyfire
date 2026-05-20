@@ -20,7 +20,6 @@ async function createMarket(creatorId: string) {
     data: {
       creatorId,
       question: "Will the demo work?",
-      description: "Test market",
       resolutionCriteria: "YES if the demo works.",
       closeTime: new Date(Date.now() + 86_400_000),
       status: "OPEN",
@@ -150,7 +149,6 @@ describe("orders", () => {
       data: {
         creatorId: user.id,
         question: "Already over?",
-        description: "Past market",
         resolutionCriteria: "Closed already.",
         closeTime: new Date("2020-01-01T00:00:00.000Z"),
         status: "OPEN",

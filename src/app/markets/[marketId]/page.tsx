@@ -110,7 +110,6 @@ export default async function MarketPage({ params }: MarketPageProps) {
         <div>
           <Link href="/">FriendlyFire</Link>
           <h1>{market.question}</h1>
-          <p>{market.description}</p>
         </div>
         <nav>
           <Link href="/admin">Admin</Link>

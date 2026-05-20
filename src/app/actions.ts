@@ -57,7 +57,6 @@ export async function createMarketAction(formData: FormData) {
   await createMarket(db, {
     actorUserId: formString(formData, "actorUserId") || (await demoActorId()),
     question: formString(formData, "question"),
-    description: formString(formData, "description"),
     resolutionCriteria: formString(formData, "resolutionCriteria"),
     closeTime: new Date(formString(formData, "closeTime")),
   });

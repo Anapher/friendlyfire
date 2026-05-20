@@ -22,7 +22,6 @@ async function createMarket(creatorId: string, closeTime = new Date(Date.now() +
     data: {
       creatorId,
       question: "Will settlement work?",
-      description: "Test market",
       resolutionCriteria: "Resolve from test facts.",
       closeTime,
       status: "OPEN",

@@ -16,7 +16,6 @@ CREATE TABLE "User" (
 CREATE TABLE "Market" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "question" TEXT NOT NULL,
-    "description" TEXT NOT NULL,
     "resolutionCriteria" TEXT NOT NULL,
     "closeTime" DATETIME NOT NULL,
     "creatorId" TEXT NOT NULL,

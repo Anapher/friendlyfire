@@ -35,7 +35,6 @@ model User {
 model Market {
   id                 String            @id @default(cuid())
   question           String
-  description        String
   resolutionCriteria String
   closeTime          DateTime
   creatorId          String

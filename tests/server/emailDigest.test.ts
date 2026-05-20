@@ -49,7 +49,6 @@ describe("sendActiveMarketDigests", () => {
       data: {
         creatorId: creator.id,
         question: "Will the picnic happen?",
-        description: "Weekend plans",
         resolutionCriteria: "YES if the picnic happens.",
         closeTime: new Date("2026-06-01T12:00:00.000Z"),
         status: "OPEN",
@@ -59,7 +58,6 @@ describe("sendActiveMarketDigests", () => {
       data: {
         creatorId: creator.id,
         question: "Will brunch happen?",
-        description: "Morning plans",
         resolutionCriteria: "YES if brunch happens.",
         closeTime: new Date("2026-05-30T12:00:00.000Z"),
         status: "OPEN",
@@ -69,7 +67,6 @@ describe("sendActiveMarketDigests", () => {
       data: {
         creatorId: creator.id,
         question: "Will the old market appear?",
-        description: "Closed market",
         resolutionCriteria: "YES if it appears.",
         closeTime: new Date("2026-05-20T12:00:00.000Z"),
         status: "CLOSED",
@@ -115,7 +112,6 @@ describe("sendActiveMarketDigests", () => {
       data: {
         creatorId: creator.id,
         question: "Will the digest survive a send failure?",
-        description: "Failure isolation",
         resolutionCriteria: "YES if later users still receive mail.",
         closeTime: new Date("2026-06-01T12:00:00.000Z"),
         status: "OPEN",

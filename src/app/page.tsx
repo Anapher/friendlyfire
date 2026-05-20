@@ -52,7 +52,6 @@ export default async function HomePage() {
               <tr key={market.id}>
                 <td>
                   <Link href={`/markets/${market.id}`}>{market.question}</Link>
-                  <div className="muted">{market.description}</div>
                 </td>
                 <td>{market.creator.name}</td>
                 <td>{market.closeTime.toLocaleString()}</td>
@@ -85,10 +84,6 @@ export default async function HomePage() {
           <label className="span-2">
             Question
             <input name="question" required placeholder="Will the demo work?" />
-          </label>
-          <label className="span-3">
-            Description
-            <textarea name="description" required rows={2} />
           </label>
           <label className="span-3">
             Resolution Criteria

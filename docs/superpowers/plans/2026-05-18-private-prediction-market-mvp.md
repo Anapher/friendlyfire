@@ -615,7 +615,6 @@ model User {
 model Market {
   id                String       @id @default(cuid())
   question          String
-  description       String
   resolutionCriteria String
   closeTime         DateTime
   creatorId         String
@@ -952,7 +951,6 @@ it("creates an open binary market with a future close time", async () => {
   const market = await createMarket(prisma, {
     actorUserId: creator.id,
     question: "Will dinner happen?",
-    description: "Friend group dinner",
     resolutionCriteria: "Resolves YES if dinner happens before midnight.",
     closeTime: new Date(Date.now() + 86_400_000),
   });
@@ -966,7 +964,6 @@ it("blacklisting cancels the user's open orders and releases locked cash", async
   const market = await createMarket(prisma, {
     actorUserId: actor.id,
     question: "Will it rain?",
-    description: "Weather",
     resolutionCriteria: "YES if it rains.",
     closeTime: new Date(Date.now() + 86_400_000),
   });
@@ -985,7 +982,6 @@ it("blacklisted active users can still resolve the market", async () => {
   const market = await createMarket(prisma, {
     actorUserId: actor.id,
     question: "Will the host arrive?",
-    description: "Host-controlled event",
     resolutionCriteria: "YES if host arrives.",
     closeTime: new Date(Date.now() + 86_400_000),
   });
@@ -1021,7 +1017,6 @@ Use these service contracts:
 type CreateMarketInput = {
   actorUserId: string;
   question: string;
-  description: string;
   resolutionCriteria: string;
   closeTime: Date;
 };
@@ -1225,7 +1220,6 @@ it("sends active market digests only to eligible users", async () => {
     data: {
       creatorId: "seed",
       question: "Open market?",
-      description: "Visible",
       resolutionCriteria: "YES if visible.",
       closeTime: new Date(Date.now() + 86_400_000),
       status: "OPEN",
@@ -1344,7 +1338,6 @@ export async function createMarketAction(formData: FormData) {
   await createMarket(db, {
     actorUserId: await demoActorId(),
     question: String(formData.get("question")),
-    description: String(formData.get("description")),
     resolutionCriteria: String(formData.get("resolutionCriteria")),
     closeTime: new Date(String(formData.get("closeTime"))),
   });

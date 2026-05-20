@@ -9,7 +9,6 @@ import { cancelRestingOrders } from "./orders";
 type CreateMarketInput = {
   actorUserId: string;
   question: string;
-  description: string;
   resolutionCriteria: string;
   closeTime: Date;
 };
@@ -63,7 +62,6 @@ export async function createMarket(prisma: PrismaClient, input: CreateMarketInpu
       data: {
         creatorId: input.actorUserId,
         question: input.question,
-        description: input.description,
         resolutionCriteria: input.resolutionCriteria,
         closeTime: input.closeTime,
         status: "OPEN",

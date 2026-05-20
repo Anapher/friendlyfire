@@ -52,7 +52,6 @@ The first version assumes one private group. Multi-group behavior is out of scop
 Each market is binary and has:
 
 - Question.
-- Description or context.
 - Resolution criteria.
 - Close time.
 - Creator.

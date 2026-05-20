@@ -51,7 +51,6 @@ describe("markets", () => {
     const market = await createMarket(prisma, {
       actorUserId: creator.id,
       question: "Will dinner happen?",
-      description: "Friend group dinner",
       resolutionCriteria: "Resolves YES if dinner happens before midnight.",
       closeTime: new Date(Date.now() + 86_400_000),
     });
@@ -83,7 +82,6 @@ describe("markets", () => {
     const market = await createMarket(prisma, {
       actorUserId: actor.id,
       question: "Will it rain?",
-      description: "Weather",
       resolutionCriteria: "YES if it rains.",
       closeTime: new Date(Date.now() + 86_400_000),
     });
@@ -165,7 +163,6 @@ describe("markets", () => {
       data: {
         creatorId: actor.id,
         question: "Expired?",
-        description: "Past close",
         resolutionCriteria: "Close when expired.",
         closeTime: new Date("2026-05-18T12:00:00.000Z"),
         status: "OPEN",
@@ -210,7 +207,6 @@ describe("markets", () => {
     const market = await createMarket(prisma, {
       actorUserId: actor.id,
       question: "Will the host arrive?",
-      description: "Host-controlled event",
       resolutionCriteria: "YES if host arrives.",
       closeTime: new Date(Date.now() + 86_400_000),
     });
