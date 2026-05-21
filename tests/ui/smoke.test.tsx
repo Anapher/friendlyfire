@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { OrderBookLadder } from "@/app/_ui/OrderBookLadder";
 import { ResponsiveTable, type Column } from "@/app/_ui/ResponsiveTable";
 import { Segmented } from "@/app/_ui/Segmented";
-import { summarizeBook } from "@/lib/bookView";
+import { cheapestTradePrices, summarizeBook } from "@/lib/bookView";
 
 afterEach(() => {
   document.body.innerHTML = "";
@@ -81,5 +81,19 @@ describe("UI primitives", () => {
       { outcome: "YES", action: "SELL", priceCents: 30 },
       { outcome: "YES", action: "BUY", priceCents: 40 },
     ]);
+  });
+
+  it("cheapestTradePrices uses direct asks and complementary bids", () => {
+    const levels = summarizeBook([
+      { outcome: "YES", action: "SELL", limitPriceCents: 65, remainingQuantity: 1 },
+      { outcome: "NO", action: "BUY", limitPriceCents: 45, remainingQuantity: 1 },
+      { outcome: "NO", action: "SELL", limitPriceCents: 70, remainingQuantity: 1 },
+      { outcome: "YES", action: "BUY", limitPriceCents: 35, remainingQuantity: 1 },
+    ]);
+
+    expect(cheapestTradePrices(levels)).toEqual({
+      yesCents: 55,
+      noCents: 65,
+    });
   });
 });

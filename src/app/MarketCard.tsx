@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Badge } from "./_ui/Badge";
 import { formatRelativeTime, money } from "@/lib/format";
+import type { CheapestTradePrices } from "@/lib/bookView";
 import type { MarketStatus } from "@/domain/types";
 
 type MarketCardProps = {
@@ -13,6 +14,7 @@ type MarketCardProps = {
     collateralCents: number;
     status: MarketStatus;
     creator: { name: string };
+    cheapestPrices: CheapestTradePrices;
   };
 };
 
@@ -42,7 +44,30 @@ export function MarketCard({ market }: MarketCardProps) {
           {formatRelativeTime(market.closeTime)}
         </time>
       </p>
+      {market.cheapestPrices.yesCents !== null || market.cheapestPrices.noCents !== null ? (
+        <div className="grid grid-cols-2 gap-2 text-sm">
+          <PricePill label="Buy YES" priceCents={market.cheapestPrices.yesCents} />
+          <PricePill label="Buy NO" priceCents={market.cheapestPrices.noCents} />
+        </div>
+      ) : null}
       <p className="text-sm text-muted">Collateral {money(market.collateralCents)}</p>
     </article>
+  );
+}
+
+function PricePill({
+  label,
+  priceCents,
+}: {
+  label: string;
+  priceCents: number | null;
+}) {
+  return (
+    <div className="rounded-md border border-line bg-bg px-2 py-1">
+      <span className="block text-xs uppercase tracking-wide text-muted">{label}</span>
+      <span className="font-mono text-sm font-semibold tabular-nums text-text">
+        {priceCents === null ? "—" : `${priceCents}¢`}
+      </span>
+    </div>
   );
 }

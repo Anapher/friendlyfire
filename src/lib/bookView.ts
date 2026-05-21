@@ -69,6 +69,11 @@ export type BestPrices = {
   bestAskCents: number | null;
 };
 
+export type CheapestTradePrices = {
+  yesCents: number | null;
+  noCents: number | null;
+};
+
 export function bestPrices(rows: LadderRow[]): BestPrices {
   const bestBidCents = rows
     .filter((r) => r.bidQuantity > 0)
@@ -81,4 +86,42 @@ export function bestPrices(rows: LadderRow[]): BestPrices {
       return best === null || row.priceCents < best ? row.priceCents : best;
     }, null);
   return { bestBidCents, bestAskCents };
+}
+
+export function cheapestTradePrices(levels: BookLevel[]): CheapestTradePrices {
+  const yesAsk = lowestPrice(levels, "YES", "SELL");
+  const noBid = highestPrice(levels, "NO", "BUY");
+  const noAsk = lowestPrice(levels, "NO", "SELL");
+  const yesBid = highestPrice(levels, "YES", "BUY");
+
+  return {
+    yesCents: minNullable(yesAsk, noBid === null ? null : 100 - noBid),
+    noCents: minNullable(noAsk, yesBid === null ? null : 100 - yesBid),
+  };
+}
+
+function lowestPrice(levels: BookLevel[], outcome: Outcome, action: OrderAction) {
+  return levels
+    .filter((level) => level.outcome === outcome && level.action === action && level.quantity > 0)
+    .reduce<number | null>((best, level) => {
+      return best === null || level.priceCents < best ? level.priceCents : best;
+    }, null);
+}
+
+function highestPrice(levels: BookLevel[], outcome: Outcome, action: OrderAction) {
+  return levels
+    .filter((level) => level.outcome === outcome && level.action === action && level.quantity > 0)
+    .reduce<number | null>((best, level) => {
+      return best === null || level.priceCents > best ? level.priceCents : best;
+    }, null);
+}
+
+function minNullable(left: number | null, right: number | null) {
+  if (left === null) {
+    return right;
+  }
+  if (right === null) {
+    return left;
+  }
+  return Math.min(left, right);
 }

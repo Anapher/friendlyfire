@@ -1,6 +1,7 @@
 import { requireCurrentUser } from "@/server/auth";
 import { db } from "@/server/db";
 import { dateTimeInputValue } from "@/lib/format";
+import { cheapestTradePrices, summarizeBook } from "@/lib/bookView";
 import type { MarketStatus, UserRole, UserStatus } from "@/domain/types";
 import { PageHeader } from "./_ui/PageHeader";
 import { MarketCard } from "./MarketCard";
@@ -14,7 +15,15 @@ export default async function HomePage() {
   const [markets, users] = await Promise.all([
     db.market.findMany({
       where: { status: "OPEN" },
-      include: { creator: true },
+      include: {
+        creator: true,
+        orders: {
+          where: {
+            status: { in: ["OPEN", "PARTIALLY_FILLED"] },
+            remainingQuantity: { gt: 0 },
+          },
+        },
+      },
       orderBy: { closeTime: "asc" },
     }),
     db.user.findMany({ orderBy: [{ role: "asc" }, { name: "asc" }] }),
@@ -39,7 +48,11 @@ export default async function HomePage() {
             {markets.map((market) => (
               <MarketCard
                 key={market.id}
-                market={{ ...market, status: market.status as MarketStatus }}
+                market={{
+                  ...market,
+                  status: market.status as MarketStatus,
+                  cheapestPrices: cheapestTradePrices(summarizeBook(market.orders)),
+                }}
               />
             ))}
           </div>
