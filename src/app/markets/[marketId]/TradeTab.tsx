@@ -71,10 +71,10 @@ function MarketSummaryCard({ market }: { market: MarketSummary }) {
         <SummaryField label="Resolution">{market.resolution ?? "—"}</SummaryField>
         <SummaryField label="Resolved by">{userLabel(market.resolvedBy)}</SummaryField>
       </dl>
-      <details className="mt-3 text-sm">
-        <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-wide text-accent-strong">
+      <div className="mt-3 text-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
           Resolution criteria
-        </summary>
+        </p>
         <p className="mt-2 whitespace-pre-wrap text-text">{market.resolutionCriteria}</p>
         {market.resolutionNote ? (
           <>
@@ -84,7 +84,7 @@ function MarketSummaryCard({ market }: { market: MarketSummary }) {
             <p className="whitespace-pre-wrap text-text">{market.resolutionNote}</p>
           </>
         ) : null}
-      </details>
+      </div>
     </Card>
   );
 }

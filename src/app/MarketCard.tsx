@@ -42,12 +42,7 @@ export function MarketCard({ market }: MarketCardProps) {
           {formatRelativeTime(market.closeTime)}
         </time>
       </p>
-      <details className="text-sm text-muted">
-        <summary className="cursor-pointer list-none text-xs font-semibold uppercase tracking-wide text-accent-strong">
-          Details
-        </summary>
-        <p className="mt-1">Collateral {money(market.collateralCents)}</p>
-      </details>
+      <p className="text-sm text-muted">Collateral {money(market.collateralCents)}</p>
     </article>
   );
 }
