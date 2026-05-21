@@ -46,8 +46,16 @@ export function MarketCard({ market }: MarketCardProps) {
       </p>
       {market.cheapestPrices.yesCents !== null || market.cheapestPrices.noCents !== null ? (
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <PricePill label="Buy YES" priceCents={market.cheapestPrices.yesCents} />
-          <PricePill label="Buy NO" priceCents={market.cheapestPrices.noCents} />
+          <PricePill
+            label="Buy YES"
+            priceCents={market.cheapestPrices.yesCents}
+            tone="success"
+          />
+          <PricePill
+            label="Buy NO"
+            priceCents={market.cheapestPrices.noCents}
+            tone="danger"
+          />
         </div>
       ) : null}
       <p className="text-sm text-muted">Collateral {money(market.collateralCents)}</p>
@@ -58,14 +66,21 @@ export function MarketCard({ market }: MarketCardProps) {
 function PricePill({
   label,
   priceCents,
+  tone,
 }: {
   label: string;
   priceCents: number | null;
+  tone: "success" | "danger";
 }) {
+  const toneClasses =
+    tone === "success"
+      ? "border-success/20 bg-success/10 text-success"
+      : "border-danger/20 bg-danger/10 text-danger";
+
   return (
-    <div className="rounded-md border border-line bg-bg px-2 py-1">
-      <span className="block text-xs uppercase tracking-wide text-muted">{label}</span>
-      <span className="font-mono text-sm font-semibold tabular-nums text-text">
+    <div className={`rounded-md border px-2 py-1 ${toneClasses}`}>
+      <span className="block text-xs uppercase tracking-wide opacity-80">{label}</span>
+      <span className="font-mono text-sm font-semibold tabular-nums">
         {priceCents === null ? "—" : `${priceCents}¢`}
       </span>
     </div>
