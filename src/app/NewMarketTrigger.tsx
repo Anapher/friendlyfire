@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useTransition, useState } from "react";
 import { Plus } from "lucide-react";
 import { createMarketAction } from "./actions";
 import { Button } from "./_ui/Button";
@@ -13,6 +13,14 @@ type NewMarketTriggerProps = {
 
 export function NewMarketTrigger({ defaultCloseTime }: NewMarketTriggerProps) {
   const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function submitMarket(formData: FormData) {
+    startTransition(async () => {
+      await createMarketAction(formData);
+      setOpen(false);
+    });
+  }
 
   return (
     <Drawer
@@ -27,7 +35,7 @@ export function NewMarketTrigger({ defaultCloseTime }: NewMarketTriggerProps) {
         </Button>
       }
     >
-      <form action={createMarketAction} className="flex flex-col gap-3">
+      <form action={submitMarket} className="flex flex-col gap-3">
         <Field label="Question">
           <input
             name="question"
@@ -53,8 +61,8 @@ export function NewMarketTrigger({ defaultCloseTime }: NewMarketTriggerProps) {
             className={fieldInputClasses()}
           />
         </Field>
-        <Button type="submit" fullWidth>
-          Create market
+        <Button type="submit" fullWidth disabled={isPending}>
+          {isPending ? "Creating..." : "Create market"}
         </Button>
       </form>
     </Drawer>
