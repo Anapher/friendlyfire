@@ -10,7 +10,7 @@ import { audit } from "./audit";
 export const SESSION_COOKIE_NAME = "friendlyfire_session";
 
 const MAGIC_LINK_TTL_MS = 15 * 60 * 1000;
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 180 * 24 * 60 * 60 * 1000;
 
 type AuthPrisma = PrismaClient;
 
