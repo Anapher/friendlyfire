@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { adjustBalanceAction } from "../actions";
 import { Button } from "../_ui/Button";
 import { Drawer } from "../_ui/Drawer";
@@ -13,6 +13,14 @@ type AdjustBalanceDrawerProps = {
 
 export function AdjustBalanceDrawer({ targetUserId, targetUserName }: AdjustBalanceDrawerProps) {
   const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function submitAdjustment(formData: FormData) {
+    startTransition(async () => {
+      await adjustBalanceAction(formData);
+      setOpen(false);
+    });
+  }
 
   return (
     <Drawer
@@ -24,7 +32,7 @@ export function AdjustBalanceDrawer({ targetUserId, targetUserName }: AdjustBala
         <Button variant="secondary">Adjust balance</Button>
       }
     >
-      <form action={adjustBalanceAction} className="flex flex-col gap-3">
+      <form action={submitAdjustment} className="flex flex-col gap-3">
         <input type="hidden" name="targetUserId" value={targetUserId} />
         <Field label="Amount (cents)">
           <input
@@ -45,8 +53,8 @@ export function AdjustBalanceDrawer({ targetUserId, targetUserName }: AdjustBala
             className={fieldInputClasses()}
           />
         </Field>
-        <Button type="submit" fullWidth>
-          Apply adjustment
+        <Button type="submit" fullWidth disabled={isPending}>
+          {isPending ? "Applying..." : "Apply adjustment"}
         </Button>
       </form>
     </Drawer>

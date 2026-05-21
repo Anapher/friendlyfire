@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Plus } from "lucide-react";
 import { createUserAction } from "../actions";
 import { Button } from "../_ui/Button";
@@ -9,6 +9,14 @@ import { Field, fieldInputClasses } from "../_ui/Field";
 
 export function NewUserDrawer() {
   const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function submitUser(formData: FormData) {
+    startTransition(async () => {
+      await createUserAction(formData);
+      setOpen(false);
+    });
+  }
 
   return (
     <Drawer
@@ -23,7 +31,7 @@ export function NewUserDrawer() {
         </Button>
       }
     >
-      <form action={createUserAction} className="flex flex-col gap-3">
+      <form action={submitUser} className="flex flex-col gap-3">
         <Field label="Name">
           <input name="name" required placeholder="New Friend" className={fieldInputClasses()} />
         </Field>
@@ -62,8 +70,8 @@ export function NewUserDrawer() {
           />
           Digest opt-out
         </label>
-        <Button type="submit" fullWidth>
-          Create user
+        <Button type="submit" fullWidth disabled={isPending}>
+          {isPending ? "Creating..." : "Create user"}
         </Button>
       </form>
     </Drawer>
