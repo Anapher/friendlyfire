@@ -20,7 +20,7 @@ export function CancelOrderButton({ marketId, orderId }: CancelOrderButtonProps)
   return (
     <AlertDialog
       trigger={
-        <Button variant="secondary" className="text-danger">
+        <Button variant="secondary" className="w-auto px-3 text-danger">
           Cancel
         </Button>
       }
