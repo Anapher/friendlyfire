@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { requestMagicLinkAction } from "../actions";
 import { Button } from "../_ui/Button";
-import { Field, fieldInputClasses } from "../_ui/Field";
+import { Field } from "../_ui/Field";
 import { getSessionUser } from "@/server/auth";
 import { LoginToasts } from "./LoginToasts";
 
@@ -10,6 +10,9 @@ export const dynamic = "force-dynamic";
 type LoginPageProps = {
   searchParams: Promise<{ error?: string; sent?: string }>;
 };
+
+const loginInputClasses =
+  "min-h-11 w-full rounded-md border border-line-strong bg-panel px-3 text-base text-text shadow-inner placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent h-12";
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const currentUser = await getSessionUser();
@@ -56,7 +59,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               inputMode="email"
               autoComplete="email"
               required
-              className={fieldInputClasses("h-12")}
+              className={loginInputClasses}
             />
           </Field>
           <Button type="submit" fullWidth>
