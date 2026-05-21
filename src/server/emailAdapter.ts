@@ -1,4 +1,4 @@
-import { ServerClient } from "postmark";
+import nodemailer from "nodemailer";
 
 export type EmailMessage = {
   to: string;
@@ -10,13 +10,12 @@ export type EmailAdapter = {
   send(message: EmailMessage): Promise<void>;
 };
 
-export type PostmarkClient = {
-  sendEmail(message: {
-    From: string;
-    To: string;
-    Subject: string;
-    TextBody: string;
-    MessageStream: string;
+export type SmtpTransporter = {
+  sendMail(message: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
   }): Promise<unknown>;
 };
 
@@ -28,23 +27,20 @@ export const consoleEmailAdapter: EmailAdapter = {
   },
 };
 
-export function postmarkEmailAdapter({
-  client,
+export function smtpEmailAdapter({
+  transporter,
   fromEmail,
-  messageStream = "outbound",
 }: {
-  client: PostmarkClient;
+  transporter: SmtpTransporter;
   fromEmail: string;
-  messageStream?: string;
 }): EmailAdapter {
   return {
     async send(message) {
-      await client.sendEmail({
-        From: fromEmail,
-        To: message.to,
-        Subject: message.subject,
-        TextBody: message.text,
-        MessageStream: messageStream,
+      await transporter.sendMail({
+        from: fromEmail,
+        to: message.to,
+        subject: message.subject,
+        text: message.text,
       });
     },
   };
@@ -52,29 +48,57 @@ export function postmarkEmailAdapter({
 
 type EmailEnv = {
   NODE_ENV?: string;
-  POSTMARK_SERVER_TOKEN?: string;
-  POSTMARK_FROM_EMAIL?: string;
-  POSTMARK_MESSAGE_STREAM?: string;
+  SMTP_HOST?: string;
+  SMTP_PORT?: string;
+  SMTP_USER?: string;
+  SMTP_PASSWORD?: string;
+  SMTP_FROM_EMAIL?: string;
 };
 
 export function createEmailAdapterFromEnv(
   env: EmailEnv = process.env,
-  clientFactory: (token: string) => PostmarkClient = (token) => new ServerClient(token),
+  transporterFactory: (options: {
+    host: string;
+    port: number;
+    secure: boolean;
+    auth: { user: string; pass: string };
+  }) => SmtpTransporter = (options) => nodemailer.createTransport(options),
 ): EmailAdapter {
   if (env.NODE_ENV !== "production") {
     return consoleEmailAdapter;
   }
 
-  if (!env.POSTMARK_SERVER_TOKEN) {
-    throw new Error("POSTMARK_SERVER_TOKEN must be configured in production");
+  if (!env.SMTP_HOST) {
+    throw new Error("SMTP_HOST must be configured in production");
   }
-  if (!env.POSTMARK_FROM_EMAIL) {
-    throw new Error("POSTMARK_FROM_EMAIL must be configured in production");
+  if (!env.SMTP_PORT) {
+    throw new Error("SMTP_PORT must be configured in production");
+  }
+  if (!env.SMTP_USER) {
+    throw new Error("SMTP_USER must be configured in production");
+  }
+  if (!env.SMTP_PASSWORD) {
+    throw new Error("SMTP_PASSWORD must be configured in production");
+  }
+  if (!env.SMTP_FROM_EMAIL) {
+    throw new Error("SMTP_FROM_EMAIL must be configured in production");
   }
 
-  return postmarkEmailAdapter({
-    client: clientFactory(env.POSTMARK_SERVER_TOKEN),
-    fromEmail: env.POSTMARK_FROM_EMAIL,
-    messageStream: env.POSTMARK_MESSAGE_STREAM ?? "outbound",
+  const port = Number(env.SMTP_PORT);
+  if (!Number.isInteger(port) || port <= 0) {
+    throw new Error("SMTP_PORT must be a positive integer");
+  }
+
+  return smtpEmailAdapter({
+    transporter: transporterFactory({
+      host: env.SMTP_HOST,
+      port,
+      secure: port === 465,
+      auth: {
+        user: env.SMTP_USER,
+        pass: env.SMTP_PASSWORD,
+      },
+    }),
+    fromEmail: env.SMTP_FROM_EMAIL,
   });
 }

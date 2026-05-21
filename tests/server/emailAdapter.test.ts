@@ -1,20 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
   createEmailAdapterFromEnv,
-  postmarkEmailAdapter,
-  type PostmarkClient,
+  smtpEmailAdapter,
+  type SmtpTransporter,
 } from "@/server/emailAdapter";
 
 describe("email adapters", () => {
-  it("sends transactional email through Postmark", async () => {
+  it("sends transactional email through SMTP", async () => {
     const sent: unknown[] = [];
-    const client: PostmarkClient = {
-      async sendEmail(message) {
+    const transporter: SmtpTransporter = {
+      async sendMail(message) {
         sent.push(message);
       },
     };
-    const adapter = postmarkEmailAdapter({
-      client,
+    const adapter = smtpEmailAdapter({
+      transporter,
       fromEmail: "FriendlyFire <login@example.com>",
     });
 
@@ -26,36 +26,44 @@ describe("email adapters", () => {
 
     expect(sent).toEqual([
       {
-        From: "FriendlyFire <login@example.com>",
-        To: "friend@example.com",
-        Subject: "Login",
-        TextBody: "Magic link",
-        MessageStream: "outbound",
+        from: "FriendlyFire <login@example.com>",
+        to: "friend@example.com",
+        subject: "Login",
+        text: "Magic link",
       },
     ]);
   });
 
-  it("uses Postmark in production and requires credentials", () => {
+  it("uses SMTP in production and requires credentials", () => {
     expect(() =>
       createEmailAdapterFromEnv({
         NODE_ENV: "production",
-        POSTMARK_SERVER_TOKEN: "token",
-        POSTMARK_FROM_EMAIL: "login@example.com",
+        SMTP_HOST: "smtp-relay.brevo.com",
+        SMTP_PORT: "587",
+        SMTP_USER: "user",
+        SMTP_PASSWORD: "password",
+        SMTP_FROM_EMAIL: "login@example.com",
       }),
     ).not.toThrow();
 
     expect(() =>
       createEmailAdapterFromEnv({
         NODE_ENV: "production",
-        POSTMARK_FROM_EMAIL: "login@example.com",
+        SMTP_PORT: "587",
+        SMTP_USER: "user",
+        SMTP_PASSWORD: "password",
+        SMTP_FROM_EMAIL: "login@example.com",
       }),
-    ).toThrow("POSTMARK_SERVER_TOKEN must be configured in production");
+    ).toThrow("SMTP_HOST must be configured in production");
 
     expect(() =>
       createEmailAdapterFromEnv({
         NODE_ENV: "production",
-        POSTMARK_SERVER_TOKEN: "token",
+        SMTP_HOST: "smtp-relay.brevo.com",
+        SMTP_PORT: "587",
+        SMTP_USER: "user",
+        SMTP_PASSWORD: "password",
       }),
-    ).toThrow("POSTMARK_FROM_EMAIL must be configured in production");
+    ).toThrow("SMTP_FROM_EMAIL must be configured in production");
   });
 });

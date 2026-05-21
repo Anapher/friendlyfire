@@ -1,6 +1,6 @@
 # FriendlyFire Deployment
 
-FriendlyFire is configured for Vercel, Supabase Postgres, Prisma, and Postmark.
+FriendlyFire is configured for Vercel, Supabase Postgres, Prisma, and Brevo SMTP.
 
 ## Vercel
 
@@ -10,15 +10,18 @@ FriendlyFire is configured for Vercel, Supabase Postgres, Prisma, and Postmark.
    - `DATABASE_URL`: Supabase pooled connection string for app traffic, usually the Supavisor pooler URL on port `6543` with `pgbouncer=true`.
    - `DIRECT_URL`: Supabase direct database connection string on port `5432`, used by Prisma migrations.
    - `APP_BASE_URL`: production origin, for example `https://friendlyfire.example.com`.
-   - `POSTMARK_SERVER_TOKEN`: Postmark server API token.
-   - `POSTMARK_FROM_EMAIL`: verified sender, for example `FriendlyFire <login@example.com>`.
-   - `POSTMARK_MESSAGE_STREAM`: optional, defaults to `outbound`.
+   - `SMTP_HOST`: Brevo SMTP server, usually `smtp-relay.brevo.com`.
+   - `SMTP_PORT`: Brevo SMTP port, usually `587`.
+   - `SMTP_USER`: Brevo SMTP login.
+   - `SMTP_PASSWORD`: Brevo SMTP password.
+   - `SMTP_FROM_EMAIL`: verified sender, for example `FriendlyFire <login@example.com>`.
 4. Deploy. Vercel runs `npm run vercel-build`, which generates Prisma Client, applies pending migrations with `prisma migrate deploy`, then builds Next.js.
 
 Reference docs:
 - Supabase with Prisma: https://supabase.com/docs/guides/database/prisma
 - Prisma with Supabase: https://www.prisma.io/docs/orm/overview/databases/supabase
-- Postmark Node library: https://postmarkapp.com/developer/integration/official-libraries
+- Brevo SMTP relay: https://help.brevo.com/hc/en-us/articles/209462765-What-is-Brevo-SMTP
+- Nodemailer SMTP transport: https://nodemailer.com/smtp/
 
 ## Local Development
 
@@ -31,7 +34,7 @@ npm run db:seed
 npm run dev
 ```
 
-In non-production environments, login emails are printed to the console. Production uses Postmark and refuses to start magic-link sending unless the Postmark token and sender are configured.
+In non-production environments, login emails are printed to the console. Production uses Brevo SMTP and refuses to start magic-link sending unless all SMTP settings are configured.
 
 ## Tests
 
