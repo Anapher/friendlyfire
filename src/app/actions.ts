@@ -19,7 +19,7 @@ import {
   requireAdminUser,
   requireCurrentUser,
 } from "@/server/auth";
-import { consoleEmailAdapter } from "@/server/emailAdapter";
+import { createEmailAdapterFromEnv } from "@/server/emailAdapter";
 
 function formString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "");
@@ -67,11 +67,10 @@ function parseNonNegativeInteger(formData: FormData, key: string) {
 }
 
 export async function requestMagicLinkAction(formData: FormData) {
-  assertConsoleEmailAllowed();
   await requestMagicLink(
     db,
     formString(formData, "email"),
-    consoleEmailAdapter,
+    createEmailAdapterFromEnv(),
     await requestBaseUrl(),
   );
   redirect("/login?sent=1");
@@ -198,12 +197,6 @@ async function requestBaseUrl() {
   const hostname = new URL(`http://${host}`).hostname;
   const proto = headerStore.get("x-forwarded-proto") ?? (localHosts.includes(hostname) ? "http" : "https");
   return normalizeBaseUrl(`${proto}://${host}`);
-}
-
-function assertConsoleEmailAllowed() {
-  if (process.env.NODE_ENV === "production" && process.env.ALLOW_CONSOLE_EMAILS !== "true") {
-    throw new Error("Console email delivery is disabled in production");
-  }
 }
 
 function normalizeBaseUrl(rawUrl: string) {

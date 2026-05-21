@@ -1,18 +1,19 @@
 import { PrismaClient } from "@prisma/client";
 import { execSync } from "node:child_process";
-import { closeSync, mkdtempSync, openSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 
 export function createIsolatedPrisma(prefix: string) {
-  const testDir = mkdtempSync(join(tmpdir(), `friendlyfire-${prefix}-`));
-  const testDbPath = join(testDir, "test.db");
-  const testUrl = `file:${testDbPath}`;
+  const baseUrl = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+  if (!baseUrl?.startsWith("postgres")) {
+    throw new Error("Server tests require TEST_DATABASE_URL or DATABASE_URL to point at Postgres");
+  }
 
-  closeSync(openSync(testDbPath, "w"));
+  const schema = `test_${prefix}_${randomUUID().replaceAll("-", "_")}`;
+  const testUrl = withSchema(baseUrl, schema);
+  const directTestUrl = withSchema(process.env.TEST_DIRECT_URL ?? process.env.DIRECT_URL ?? baseUrl, schema);
 
   execSync("npx prisma db push --skip-generate", {
-    env: { ...process.env, DATABASE_URL: testUrl },
+    env: { ...process.env, DATABASE_URL: testUrl, DIRECT_URL: directTestUrl },
     stdio: "pipe",
   });
 
@@ -23,10 +24,16 @@ export function createIsolatedPrisma(prefix: string) {
   return {
     prisma,
     async cleanup() {
+      await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
       await prisma.$disconnect();
-      rmSync(testDir, { recursive: true, force: true });
     },
   };
+}
+
+function withSchema(databaseUrl: string, schema: string) {
+  const url = new URL(databaseUrl);
+  url.searchParams.set("schema", schema);
+  return url.toString();
 }
 
 export async function resetTestDb(prisma: PrismaClient) {

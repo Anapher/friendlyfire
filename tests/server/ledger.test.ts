@@ -1,25 +1,9 @@
-import { PrismaClient } from "@prisma/client";
-import { execSync } from "node:child_process";
-import { closeSync, mkdtempSync, openSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { adjustUserBalance } from "@/server/ledger";
+import { createIsolatedPrisma } from "./helpers";
 
-const testDir = mkdtempSync(join(tmpdir(), "friendlyfire-ledger-"));
-const testDbPath = join(testDir, "test.db");
-const testUrl = `file:${testDbPath}`;
-
-closeSync(openSync(testDbPath, "w"));
-
-execSync("npx prisma db push --skip-generate", {
-  env: { ...process.env, DATABASE_URL: testUrl },
-  stdio: "pipe",
-});
-
-const prisma = new PrismaClient({
-  datasources: { db: { url: testUrl } },
-});
+const db = createIsolatedPrisma("ledger");
+const prisma = db.prisma;
 
 describe("adjustUserBalance", () => {
   beforeEach(async () => {
@@ -29,8 +13,7 @@ describe("adjustUserBalance", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
-    rmSync(testDir, { recursive: true, force: true });
+    await db.cleanup();
   });
 
   it("lets admins credit and debit users with audit entries", async () => {

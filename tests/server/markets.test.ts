@@ -1,8 +1,3 @@
-import { PrismaClient } from "@prisma/client";
-import { execSync } from "node:child_process";
-import { closeSync, mkdtempSync, openSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import {
   addUserToMarketBlacklist,
@@ -10,21 +5,10 @@ import {
   createMarket,
   resolveMarket,
 } from "@/server/markets";
+import { createIsolatedPrisma } from "./helpers";
 
-const testDir = mkdtempSync(join(tmpdir(), "friendlyfire-markets-"));
-const testDbPath = join(testDir, "test.db");
-const testUrl = `file:${testDbPath}`;
-
-closeSync(openSync(testDbPath, "w"));
-
-execSync("npx prisma db push --skip-generate", {
-  env: { ...process.env, DATABASE_URL: testUrl },
-  stdio: "pipe",
-});
-
-const prisma = new PrismaClient({
-  datasources: { db: { url: testUrl } },
-});
+const db = createIsolatedPrisma("markets");
+const prisma = db.prisma;
 
 describe("markets", () => {
   beforeEach(async () => {
@@ -39,8 +23,7 @@ describe("markets", () => {
   });
 
   afterAll(async () => {
-    await prisma.$disconnect();
-    rmSync(testDir, { recursive: true, force: true });
+    await db.cleanup();
   });
 
   it("creates an open binary market with a future close time", async () => {
